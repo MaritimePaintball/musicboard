@@ -1,0 +1,1906 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>MusicBoard — Video Storyboard Studio</title>
+
+<!-- SEO & sharing -->
+<meta name="description" content="A freeform storyboarding tool for music videos. Infinite canvas, audio waveforms, drawing tablet support, and storyboard frames.">
+<meta name="author" content="MusicBoard">
+<meta property="og:title" content="MusicBoard — Video Storyboard Studio">
+<meta property="og:description" content="A freeform storyboarding canvas for music videos and video directors.">
+<meta property="og:type" content="website">
+
+<!-- PWA -->
+<meta name="theme-color" content="#1a1814">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="MusicBoard">
+<link rel="manifest" href="manifest.json">
+
+<!-- Fonts — preconnect for speed, swap prevents invisible text during load -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&display=swap">
+
+<style>
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #f0ede8;
+    --canvas-bg: #e8e4de;
+    --panel: #1a1814;
+    --panel2: #2a2620;
+    --accent: #e8500a;
+    --accent2: #f0a030;
+    --text: #1a1814;
+    --text-inv: #f0ede8;
+    --text-muted: #6b6560;
+    --border: #c8c4be;
+    --frame-bg: #faf8f4;
+    --frame-border: #1a1814;
+    --waveform-bg: #1a1814;
+    --waveform-wave: #e8500a;
+    --waveform-playhead: #f0a030;
+    --shadow: 0 4px 24px rgba(26,24,20,0.18);
+    --shadow-sm: 0 2px 8px rgba(26,24,20,0.12);
+    --radius: 3px;
+  }
+
+  html, body {
+    width: 100%; height: 100%; overflow: hidden;
+    background: var(--bg);
+    font-family: 'DM Mono', monospace;
+    color: var(--text);
+    user-select: none;
+  }
+
+  /* ── TOOLBAR ── */
+  #toolbar {
+    position: fixed; top: 0; left: 0; right: 0; height: 52px;
+    background: var(--panel);
+    display: flex; align-items: center; gap: 0;
+    z-index: 1000;
+    border-bottom: 2px solid var(--accent);
+  }
+
+  #logo {
+    padding: 0 20px;
+    font-family: 'Syne', sans-serif;
+    font-weight: 800; font-size: 15px;
+    color: var(--text-inv);
+    letter-spacing: 0.04em;
+    border-right: 1px solid #333;
+    height: 100%; display: flex; align-items: center;
+    white-space: nowrap;
+  }
+  #logo span { color: var(--accent); }
+
+  .tb-group {
+    display: flex; align-items: center;
+    height: 100%;
+    border-right: 1px solid #333;
+    padding: 0 8px; gap: 2px;
+  }
+
+  .tb-btn {
+    background: none; border: none; cursor: pointer;
+    color: #888; width: 36px; height: 36px;
+    border-radius: var(--radius);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; transition: all 0.15s;
+    position: relative;
+  }
+  .tb-btn:hover { background: #2a2620; color: var(--text-inv); }
+  .tb-btn.active { background: var(--accent); color: #fff; }
+  .tb-btn[title]:hover::after {
+    content: attr(title);
+    position: absolute; top: 44px; left: 50%; transform: translateX(-50%);
+    background: #000; color: #fff; font-size: 11px; padding: 3px 7px;
+    border-radius: 3px; white-space: nowrap; pointer-events: none;
+    font-family: 'DM Mono', monospace;
+  }
+
+  .tb-sep { width: 1px; background: #333; height: 28px; margin: 0 4px; }
+
+  #color-picker-wrap {
+    display: flex; align-items: center; gap: 6px; padding: 0 10px;
+    border-right: 1px solid #333; height: 100%;
+  }
+  #color-picker-wrap label { color: #666; font-size: 10px; }
+  #stroke-color { width: 28px; height: 28px; border: 2px solid #444; border-radius: 50%; cursor: pointer; padding: 0; background: none; }
+
+  #brush-size-wrap {
+    display: flex; align-items: center; gap: 6px; padding: 0 12px;
+    border-right: 1px solid #333; height: 100%;
+  }
+  #brush-size-wrap label { color: #666; font-size: 10px; }
+  #brush-size { width: 70px; accent-color: var(--accent); }
+
+  #toolbar-right {
+    margin-left: auto; display: flex; align-items: center; gap: 4px; padding: 0 12px;
+  }
+  .tb-btn-text {
+    background: none; border: 1px solid #444; cursor: pointer;
+    color: #aaa; padding: 5px 12px; border-radius: var(--radius);
+    font-family: 'DM Mono', monospace; font-size: 11px;
+    display: flex; align-items: center; gap: 6px;
+    transition: all 0.15s; white-space: nowrap;
+  }
+  .tb-btn-text:hover { background: #2a2620; color: #fff; border-color: #666; }
+  .tb-btn-text.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .tb-btn-text.primary:hover { background: #c43d06; }
+
+  /* ── CANVAS AREA ── */
+  #canvas-container {
+    position: fixed; top: 52px; left: 0; right: 0; bottom: 0;
+    overflow: hidden; cursor: default;
+  }
+
+  #infinite-canvas {
+    position: absolute; top: 0; left: 0;
+    transform-origin: 0 0;
+    width: 8000px; height: 8000px;
+  }
+
+  /* Grid background */
+  #canvas-container::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    background-image:
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 40px 40px;
+    opacity: 0.5;
+    pointer-events: none; z-index: 0;
+  }
+
+  /* Drawing canvas sits on top of everything in infinite space */
+  #draw-canvas {
+    position: absolute; top: 0; left: 0;
+    width: 8000px; height: 8000px;
+    pointer-events: none;
+    z-index: 5;
+  }
+  #draw-canvas.drawing-mode { pointer-events: all; cursor: crosshair; }
+
+  /* Screen-resolution overlay for low-latency live strokes */
+  #stroke-overlay {
+    position: fixed;
+    top: 0; left: 0;
+    pointer-events: none;
+    z-index: 999;           /* above everything, but below toolbar */
+    image-rendering: pixelated;
+  }
+  #stroke-overlay.drawing-mode { pointer-events: all; cursor: crosshair; }
+
+  /* ── WAVEFORM ── */
+  .waveform-block {
+    position: absolute;
+    background: var(--waveform-bg);
+    border: 2px solid var(--accent);
+    border-radius: var(--radius);
+    min-width: 300px; height: 90px;
+    z-index: 50;
+    display: flex; flex-direction: column;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  .waveform-block.locked { border-color: var(--accent2); }
+
+  .waveform-header {
+    height: 26px; background: #111;
+    display: flex; align-items: center; padding: 0 8px; gap: 6px;
+    cursor: move; flex-shrink: 0;
+  }
+  .waveform-block.locked .waveform-header { cursor: default; }
+  .waveform-title {
+    font-size: 10px; color: #888; font-family: 'DM Mono', monospace;
+    flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .waveform-ctrl {
+    background: none; border: none; cursor: pointer;
+    color: #666; font-size: 12px; padding: 2px 4px;
+    border-radius: 2px; line-height: 1;
+    transition: color 0.1s;
+  }
+  .waveform-ctrl:hover { color: #fff; }
+  .waveform-ctrl.active { color: var(--accent2); }
+
+  .waveform-vol-wrap {
+    display: flex; align-items: center; gap: 5px;
+    padding: 0 4px;
+  }
+  .waveform-vol-btn {
+    background: none; border: none; cursor: pointer;
+    color: #666; font-size: 12px; line-height: 1;
+    padding: 2px 3px; border-radius: 2px; transition: color 0.1s;
+    flex-shrink: 0;
+  }
+  .waveform-vol-btn:hover { color: #fff; }
+  .waveform-vol-btn.muted { color: var(--accent); }
+  .waveform-vol-slider {
+    -webkit-appearance: none; appearance: none;
+    width: 64px; height: 3px; border-radius: 2px;
+    background: #444; outline: none; cursor: pointer;
+    accent-color: var(--accent2);
+  }
+  .waveform-vol-slider::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 11px; height: 11px;
+    border-radius: 50%; background: var(--accent2); cursor: pointer;
+    border: 2px solid #1a1814;
+  }
+  .waveform-vol-slider::-moz-range-thumb {
+    width: 11px; height: 11px; border-radius: 50%;
+    background: var(--accent2); cursor: pointer; border: 2px solid #1a1814;
+  }
+
+  .waveform-body {
+    flex: 1; position: relative; overflow: hidden;
+  }
+  .waveform-canvas {
+    width: 100%; height: 100%; display: block;
+  }
+  .waveform-playhead {
+    position: absolute; top: 0; bottom: 0; width: 2px;
+    background: var(--waveform-playhead);
+    pointer-events: none; left: 0;
+  }
+
+  /* Resize handles */
+  .waveform-resize-l, .waveform-resize-r {
+    position: absolute; top: 26px; bottom: 0; width: 10px;
+    cursor: ew-resize; z-index: 2;
+  }
+  .waveform-resize-l { left: 0; }
+  .waveform-resize-r { right: 0; }
+  .waveform-resize-l::after, .waveform-resize-r::after {
+    content: '⋮';
+    position: absolute; top: 50%; transform: translateY(-50%);
+    color: #444; font-size: 14px;
+  }
+  .waveform-resize-l::after { left: 1px; }
+  .waveform-resize-r::after { right: 1px; }
+
+  /* ── STORYBOARD FRAMES ── */
+  .sb-frame {
+    position: absolute;
+    background: var(--frame-bg);
+    border: 2px solid var(--frame-border);
+    border-radius: var(--radius);
+    min-width: 160px; min-height: 120px;
+    box-shadow: 4px 4px 0 var(--frame-border);
+    z-index: 40;
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  .sb-frame:hover { z-index: 45; }
+
+  .sb-frame-header {
+    background: var(--frame-border);
+    height: 28px; display: flex; align-items: center;
+    padding: 0 8px; gap: 6px; cursor: move; flex-shrink: 0;
+  }
+  .sb-frame-title {
+    flex: 1; font-size: 11px; color: #e0dbd4;
+    font-family: 'Syne', sans-serif; font-weight: 600;
+    background: none; border: none; outline: none;
+    cursor: default; letter-spacing: 0.02em; min-width: 0;
+    pointer-events: none;
+  }
+  .sb-frame-title.editing {
+    cursor: text; pointer-events: all;
+    background: rgba(255,255,255,0.1); border-radius: 2px;
+    padding: 1px 4px; color: #fff;
+  }
+  .sb-frame-title::placeholder { color: #555; }
+  .sb-frame-title:focus {
+    background: rgba(255,255,255,0.1); border-radius: 2px;
+    padding: 1px 4px; color: #fff;
+  }
+  .sb-frame-btn {
+    background: none; border: none; cursor: pointer;
+    color: #666; font-size: 12px; padding: 1px 3px;
+    line-height: 1; transition: color 0.1s; border-radius: 2px;
+  }
+  .sb-frame-btn:hover { color: #fff; }
+  .sb-frame-btn.del:hover { color: #ff4444; }
+
+  .sb-frame-body {
+    flex: 1; position: relative; overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+
+  /* Tab bar inside frame */
+  .sb-frame-tabs {
+    display: flex; border-bottom: 1px solid #ddd;
+    background: #f0ede8; flex-shrink: 0;
+  }
+  .sb-tab {
+    font-size: 9px; padding: 4px 10px; cursor: pointer;
+    border: none; background: none; font-family: 'DM Mono', monospace;
+    color: var(--text-muted); border-right: 1px solid #ddd;
+    transition: all 0.1s;
+  }
+  .sb-tab.active { background: var(--frame-bg); color: var(--text); font-weight: 500; }
+
+  .sb-frame-content { flex: 1; position: relative; overflow: hidden; }
+
+  /* Text tab */
+  .sb-text-area {
+    width: 100%; height: 100%; border: none; outline: none; resize: none;
+    background: transparent; font-family: 'DM Mono', monospace;
+    font-size: 12px; color: var(--text); padding: 8px;
+    line-height: 1.6;
+  }
+
+  /* Draw tab */
+  .sb-draw-canvas {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    cursor: crosshair; touch-action: none;
+  }
+
+  /* Image tab */
+  .sb-image-area {
+    width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
+    flex-direction: column; gap: 8px; padding: 12px;
+  }
+  .sb-image-area img { max-width: 100%; max-height: 100%; object-fit: contain; }
+  .sb-media-video {
+    max-width: 100%; max-height: 100%; display: block;
+    background: #000; border-radius: 2px;
+  }
+  .sb-media-iframe {
+    width: 100%; height: 100%; border: none; display: block;
+    min-height: 160px;
+  }
+  .sb-media-chooser {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 7px; padding: 12px;
+  }
+  .sb-media-wrap {
+    position: relative; width: 100%; height: 100%;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .sb-media-swap {
+    position: absolute; bottom: 6px; right: 6px;
+    background: rgba(26,24,20,0.75); color: #ccc;
+    border: 1px solid #555; border-radius: 3px;
+    font-size: 10px; font-family: 'DM Mono', monospace;
+    padding: 3px 8px; cursor: pointer; z-index: 10;
+    opacity: 0; transition: opacity 0.15s;
+    pointer-events: none;
+  }
+  .sb-media-wrap:hover .sb-media-swap {
+    opacity: 1; pointer-events: all;
+  }
+  .sb-img-placeholder {
+    color: var(--text-muted); font-size: 11px; text-align: center;
+    pointer-events: none;
+  }
+  .sb-img-upload {
+    font-size: 10px; padding: 4px 10px; border: 1px solid var(--border);
+    background: none; border-radius: 2px; cursor: pointer;
+    font-family: 'DM Mono', monospace; color: var(--text-muted);
+  }
+  .sb-img-upload:hover { background: var(--bg); color: var(--text); }
+
+  /* Resize handle (bottom-right) */
+  .sb-resize {
+    position: absolute; bottom: 0; right: 0;
+    width: 16px; height: 16px; cursor: se-resize;
+    z-index: 2;
+  }
+  .sb-resize::after {
+    content: '';
+    position: absolute; bottom: 3px; right: 3px;
+    width: 7px; height: 7px;
+    border-right: 2px solid #bbb; border-bottom: 2px solid #bbb;
+  }
+
+  /* ── CANVAS IMAGES ── */
+  .canvas-image {
+    position: absolute; cursor: move; z-index: 30;
+    border: 2px solid transparent;
+    transition: border-color 0.1s;
+  }
+  .canvas-image:hover { border-color: var(--accent); }
+  .canvas-image img { display: block; max-width: 400px; max-height: 400px; }
+  .canvas-image .img-del {
+    position: absolute; top: -10px; right: -10px;
+    background: var(--accent); color: #fff; border: none;
+    width: 20px; height: 20px; border-radius: 50%;
+    font-size: 12px; cursor: pointer; display: none;
+    align-items: center; justify-content: center; line-height: 1;
+  }
+  .canvas-image:hover .img-del { display: flex; }
+
+  /* ── CANVAS TEXT LABELS ── */
+  .canvas-label {
+    position: absolute; z-index: 35; cursor: move;
+    min-width: 80px; min-height: 24px;
+  }
+  .canvas-label-input {
+    background: transparent; border: none; outline: none;
+    font-family: 'DM Mono', monospace; font-size: 14px;
+    color: var(--text); width: 100%;
+    cursor: text;
+  }
+  .canvas-label:hover .canvas-label-input { background: rgba(255,255,255,0.5); border-radius: 2px; }
+  .canvas-label .lbl-del {
+    position: absolute; top: -8px; right: -8px;
+    background: var(--accent); color: #fff; border: none;
+    width: 16px; height: 16px; border-radius: 50%;
+    font-size: 10px; cursor: pointer; display: none;
+    align-items: center; justify-content: center;
+  }
+  .canvas-label:hover .lbl-del { display: flex; }
+
+  /* ── STATUS BAR ── */
+  #statusbar {
+    position: fixed; bottom: 0; left: 0; right: 0; height: 26px;
+    background: var(--panel); border-top: 1px solid #2a2620;
+    display: flex; align-items: center; padding: 0 12px; gap: 20px;
+    z-index: 1000;
+  }
+  .status-item { font-size: 10px; color: #555; font-family: 'DM Mono', monospace; }
+  .status-item span { color: #888; }
+
+  /* ── HIDDEN INPUTS ── */
+  #audio-input, #image-input, #project-input { display: none; }
+
+  /* ── MODALS / OVERLAYS ── */
+  .drop-overlay {
+    position: fixed; inset: 52px 0 26px 0;
+    background: rgba(232,80,10,0.12);
+    border: 3px dashed var(--accent);
+    z-index: 2000; display: none;
+    align-items: center; justify-content: center;
+    font-family: 'Syne', sans-serif; font-size: 22px;
+    color: var(--accent); pointer-events: none;
+  }
+  .drop-overlay.visible { display: flex; }
+
+  /* Scrollbars */
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #444; border-radius: 2px; }
+
+  /* file:// protocol notice */
+  #file-notice {
+    position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
+    background: #2a2620; border: 1px solid var(--accent2);
+    color: #ccc; font-size: 10px; font-family: 'DM Mono', monospace;
+    padding: 6px 14px; border-radius: 3px; z-index: 2000;
+    display: none; gap: 10px; align-items: center; white-space: nowrap;
+  }
+  #file-notice.visible { display: flex; }
+  #file-notice-close {
+    background: none; border: none; color: #888; cursor: pointer;
+    font-size: 13px; padding: 0 0 0 4px; line-height: 1;
+  }
+  #file-notice-close:hover { color: #fff; }
+</style>
+</head>
+<body>
+
+<!-- TOOLBAR -->
+<div id="toolbar">
+  <div id="logo">MUSIC<span>BOARD</span></div>
+
+  <div class="tb-group">
+    <button class="tb-btn active" id="tool-select" title="Select / Move (V)"><svg width="14" height="16" viewBox="0 0 14 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M2 1 L2 13 L5.5 9.5 L8.5 15 L10.5 14 L7.5 8 L12 8 Z" fill="currentColor"/></svg></button>
+    <button class="tb-btn" id="tool-draw" title="Draw (D)">&#9998;</button>
+    <button class="tb-btn" id="tool-erase" title="Erase (E)">&#9723;</button>
+    <button class="tb-btn" id="tool-text" title="Add Text Label (T)">T</button>
+  </div>
+
+  <div id="color-picker-wrap">
+    <label>INK</label>
+    <input type="color" id="stroke-color" value="#1a1814">
+  </div>
+
+  <div id="brush-size-wrap">
+    <label>SIZE</label>
+    <input type="range" id="brush-size" min="1" max="40" value="3">
+  </div>
+
+  <div class="tb-group">
+    <button class="tb-btn" id="btn-add-frame" title="Add Storyboard Frame (F)">&#9634;</button>
+    <button class="tb-btn" id="btn-add-audio" title="Add Audio Track (A)">&#9835;</button>
+    <button class="tb-btn" id="btn-add-image" title="Import Image (I)">&#128444;</button>
+  </div>
+
+  <div id="toolbar-right">
+    <button class="tb-btn-text" id="btn-tutorial">? Tutorial</button>
+    <button class="tb-btn-text" id="btn-clear-draw">&#9003; Clear Ink</button>
+    <button class="tb-btn-text" id="btn-load">&#128194; Load</button>
+    <button class="tb-btn-text primary" id="btn-save">&#128190; Save</button>
+  </div>
+</div>
+
+<!-- CANVAS -->
+<div id="canvas-container">
+  <div id="infinite-canvas">
+    <canvas id="draw-canvas"></canvas>
+  </div>
+</div>
+
+<!-- STATUS BAR -->
+<div id="statusbar">
+  <div class="status-item">TOOL: <span id="status-tool">SELECT</span></div>
+  <div class="status-item">ZOOM: <span id="status-zoom">100%</span></div>
+  <div class="status-item">POS: <span id="status-pos">0, 0</span></div>
+  <div class="status-item" id="status-audio-info">AUDIO: <span>none</span></div>
+</div>
+
+<!-- STROKE OVERLAY (screen-res, for smooth live drawing) -->
+<canvas id="stroke-overlay"></canvas>
+
+<!-- FILE:// PROTOCOL NOTICE -->
+<div id="file-notice">
+  ⚠ YouTube embeds require a web server.
+  Run: <strong>python3 -m http.server 8080</strong> then open localhost:8080
+  <button id="file-notice-close" title="Dismiss">✕</button>
+</div>
+
+<!-- DROP OVERLAY -->
+<div class="drop-overlay" id="drop-overlay">Drop audio or image file here</div>
+
+<!-- HIDDEN INPUTS -->
+<input type="file" id="audio-input" accept="audio/*">
+<input type="file" id="image-input" accept="image/*,.tiff,.tif">
+<input type="file" id="project-input" accept=".json,.musicboard">
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════
+const state = {
+  tool: 'select',      // select | draw | erase | text
+  zoom: 1,
+  panX: 100, panY: 100,
+  strokeColor: '#1a1814',
+  brushSize: 3,
+  isDrawing: false,
+  isPanning: false,
+  panStart: null,
+  drawPoints: [],
+  frameCount: 0,
+  waveformCount: 0,
+  labelCount: 0,
+  imageCount: 0,
+};
+
+// Canvas transform
+const container = document.getElementById('canvas-container');
+const infiniteCanvas = document.getElementById('infinite-canvas');
+const drawCanvas = document.getElementById('draw-canvas');
+const ctx = drawCanvas.getContext('2d');
+drawCanvas.width = 8000;
+drawCanvas.height = 8000;
+
+// ═══════════════════════════════════════════════════════════
+// TRANSFORM
+// ═══════════════════════════════════════════════════════════
+// Transform cache — keeps drawing overlay coords in sync without layout reflow
+let _tx = 0, _ty = 0, _tz = 1;
+
+function applyTransform() {
+  infiniteCanvas.style.transform = `translate(${state.panX}px, ${state.panY}px) scale(${state.zoom})`;
+  document.getElementById('status-zoom').textContent = Math.round(state.zoom * 100) + '%';
+  // Keep cached transform in sync (used by drawing overlay to avoid reflow)
+  _tx = state.panX; _ty = state.panY; _tz = state.zoom;
+}
+applyTransform();
+
+// Client coords → canvas coords
+function toCanvas(cx, cy) {
+  return {
+    x: (cx - state.panX) / state.zoom,
+    y: (cy - state.panY) / state.zoom,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════
+// TOOLBAR
+// ═══════════════════════════════════════════════════════════
+const toolBtns = {
+  select: document.getElementById('tool-select'),
+  draw:   document.getElementById('tool-draw'),
+  erase:  document.getElementById('tool-erase'),
+  text:   document.getElementById('tool-text'),
+};
+
+function setTool(t) {
+  state.tool = t;
+  Object.values(toolBtns).forEach(b => b.classList.remove('active'));
+  toolBtns[t].classList.add('active');
+  document.getElementById('status-tool').textContent = t.toUpperCase();
+  const dc = document.getElementById('draw-canvas');
+  dc.classList.toggle('drawing-mode', t === 'draw' || t === 'erase');
+  // Overlay receives pointer events in draw/erase (drawing) and select (stroke picking)
+  const ov = document.getElementById('stroke-overlay');
+  if (ov) ov.classList.toggle('drawing-mode', t === 'draw' || t === 'erase' || t === 'select');
+  // Clear selection highlight when switching away from select
+  if (t !== 'select' && typeof octx !== 'undefined') {
+    octx.clearRect(0, 0, overlay.width, overlay.height);
+    selectedStroke = null;
+  }
+  container.style.cursor = t === 'select' ? 'default' : t === 'text' ? 'text' : 'crosshair';
+}
+
+Object.entries(toolBtns).forEach(([t, btn]) => btn.addEventListener('click', () => setTool(t)));
+
+document.getElementById('stroke-color').addEventListener('input', e => { state.strokeColor = e.target.value; });
+document.getElementById('brush-size').addEventListener('input', e => { state.brushSize = +e.target.value; });
+
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.key === 'v' || e.key === 'V') setTool('select');
+  if (e.key === 'd' || e.key === 'D') setTool('draw');
+  if (e.key === 'e' || e.key === 'E') setTool('erase');
+  if (e.key === 't' || e.key === 'T') setTool('text');
+  if (e.key === 'f' || e.key === 'F') addFrame();
+  if (e.key === 'a' || e.key === 'A') document.getElementById('audio-input').click();
+  if (e.key === 'i' || e.key === 'I') document.getElementById('image-input').click();
+});
+
+// ═══════════════════════════════════════════════════════════
+// CANVAS PANNING (Middle Mouse)
+// ═══════════════════════════════════════════════════════════
+container.addEventListener('mousedown', e => {
+  if (e.button === 1) {
+    e.preventDefault();
+    state.isPanning = true;
+    state.panStart = { x: e.clientX - state.panX, y: e.clientY - state.panY };
+    container.style.cursor = 'grabbing';
+  }
+  if (e.button === 0 && state.tool === 'text') {
+    const pos = toCanvas(e.clientX, e.clientY);
+    addLabel(pos.x, pos.y);
+    setTool('select');
+  }
+});
+
+window.addEventListener('mousemove', e => {
+  if (state.isPanning) {
+    state.panX = e.clientX - state.panStart.x;
+    state.panY = e.clientY - state.panStart.y;
+    applyTransform();
+  }
+  const pos = toCanvas(e.clientX, e.clientY);
+  document.getElementById('status-pos').textContent = `${Math.round(pos.x)}, ${Math.round(pos.y)}`;
+});
+
+window.addEventListener('mouseup', e => {
+  if (e.button === 1) {
+    state.isPanning = false;
+    container.style.cursor = state.tool === 'select' ? 'default' : 'crosshair';
+  }
+});
+
+// Scroll to zoom
+container.addEventListener('wheel', e => {
+  e.preventDefault();
+  const delta = e.deltaY > 0 ? 0.9 : 1.1;
+  const newZoom = Math.max(0.1, Math.min(4, state.zoom * delta));
+  // Zoom toward mouse position
+  const mx = e.clientX, my = e.clientY;
+  state.panX = mx - (mx - state.panX) * (newZoom / state.zoom);
+  state.panY = my - (my - state.panY) * (newZoom / state.zoom);
+  state.zoom = newZoom;
+  applyTransform();
+}, { passive: false });
+
+container.addEventListener('contextmenu', e => e.preventDefault());
+
+// ═══════════════════════════════════════════════════════════
+// FREEHAND DRAWING — overlay + stroke-history system
+//
+// Architecture:
+//   overlay canvas  : screen-res, live stroke preview (fast, no offset issues)
+//   drawCanvas      : 8000×8000, final raster of all committed strokes
+//   strokeHistory[] : vector record of every stroke for move/undo support
+//
+// Coordinate spaces:
+//   screen  : raw clientX/Y from pointer events (what the overlay uses)
+//   canvas  : infinite-canvas space = (screen - pan) / zoom
+//             This is what gets stored in strokeHistory and drawn to drawCanvas.
+//
+// The drop-on-commit bug was caused by the overlay being position:fixed
+// starting at y=0 but the toolbar consuming 52px — so screen→canvas was
+// offset by the toolbar height. Fix: use toCanvas() (pan/zoom math) for
+// all canvas-space coordinates instead of getBoundingClientRect().
+// ═══════════════════════════════════════════════════════════
+
+const TOOLBAR_H = 52; // keep in sync with #toolbar height in CSS
+
+const overlay = document.getElementById('stroke-overlay');
+const octx    = overlay.getContext('2d');
+
+function resizeOverlay() {
+  overlay.width  = window.innerWidth;
+  overlay.height = window.innerHeight;
+}
+resizeOverlay();
+window.addEventListener('resize', resizeOverlay);
+
+// Sync cache helper (variables declared above near applyTransform)
+function invalidateTransformCache() {
+  _tx = state.panX;
+  _ty = state.panY;
+  _tz = state.zoom;
+}
+invalidateTransformCache();
+
+// Screen coords → canvas coords  (uses cached pan/zoom — no reflow)
+// clientY from the overlay (position:fixed, top:0) must subtract the
+// canvas-container top offset (TOOLBAR_H) so Y lines up with canvas space.
+function screenToCanvas(sx, sy) {
+  return { x: (sx - _tx) / _tz, y: (sy - TOOLBAR_H - _ty) / _tz };
+}
+
+// Canvas coords → screen coords (inverse, for drawing selection highlight)
+function canvasToScreen(cx, cy) {
+  return { x: cx * _tz + _tx, y: cy * _tz + _ty + TOOLBAR_H };
+}
+
+// ── Stroke history ──────────────────────────────────────────
+// Each entry: { points:[{x,y,w}…], color, isErase, offsetX, offsetY }
+// offsetX/Y are applied at render time so we can move strokes cheaply.
+let strokeHistory = [];
+
+// Redraw all committed strokes onto drawCanvas from vector data
+function redrawAllStrokes() {
+  ctx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+  for (const s of strokeHistory) {
+    drawStrokeToCtx(ctx, s);
+  }
+}
+
+function drawStrokeToCtx(targetCtx, s) {
+  if (s.points.length < 2) return;
+  targetCtx.save();
+  targetCtx.globalCompositeOperation = s.isErase ? 'destination-out' : 'source-over';
+  targetCtx.lineCap  = 'round';
+  targetCtx.lineJoin = 'round';
+  targetCtx.strokeStyle = s.color;
+  const ox = s.offsetX || 0, oy = s.offsetY || 0;
+  targetCtx.beginPath();
+  targetCtx.moveTo(s.points[0].x + ox, s.points[0].y + oy);
+  for (let i = 1; i < s.points.length; i++) {
+    const pa = s.points[i-1], pb = s.points[i];
+    const mx = (pa.x + pb.x) / 2 + ox, my = (pa.y + pb.y) / 2 + oy;
+    targetCtx.lineWidth = pb.w;
+    targetCtx.quadraticCurveTo(pa.x + ox, pa.y + oy, mx, my);
+  }
+  targetCtx.lineTo(s.points[s.points.length-1].x + ox, s.points[s.points.length-1].y + oy);
+  targetCtx.stroke();
+  targetCtx.restore();
+}
+
+// ── Live overlay rendering ───────────────────────────────────
+// activeScreenPoints: raw screen coords collected during current stroke
+let activeScreenPoints = [];
+
+function renderOverlayStroke() {
+  octx.clearRect(0, 0, overlay.width, overlay.height);
+  if (activeScreenPoints.length < 2) return;
+  octx.save();
+  octx.lineCap  = 'round';
+  octx.lineJoin = 'round';
+  octx.strokeStyle = activeScreenPoints[0].color;
+  octx.beginPath();
+  octx.moveTo(activeScreenPoints[0].sx, activeScreenPoints[0].sy);
+  for (let i = 1; i < activeScreenPoints.length; i++) {
+    const pa = activeScreenPoints[i-1], pb = activeScreenPoints[i];
+    const mx = (pa.sx + pb.sx) / 2, my = (pa.sy + pb.sy) / 2;
+    octx.lineWidth = pb.w;
+    octx.quadraticCurveTo(pa.sx, pa.sy, mx, my);
+  }
+  octx.lineTo(activeScreenPoints[activeScreenPoints.length-1].sx,
+              activeScreenPoints[activeScreenPoints.length-1].sy);
+  octx.stroke();
+  octx.restore();
+}
+
+let rafPending = false;
+function scheduleOverlayRender() {
+  if (rafPending) return;
+  rafPending = true;
+  requestAnimationFrame(() => { rafPending = false; renderOverlayStroke(); });
+}
+
+// Convert active screen points → canvas-space stroke and commit to history + drawCanvas
+function commitStroke(isErase) {
+  octx.clearRect(0, 0, overlay.width, overlay.height);
+  if (activeScreenPoints.length < 2) { activeScreenPoints = []; return; }
+
+  const canvasPoints = activeScreenPoints.map(p => {
+    const c = screenToCanvas(p.sx, p.sy);
+    return { x: c.x, y: c.y, w: p.w / _tz };
+  });
+
+  const stroke = {
+    points: canvasPoints,
+    color: activeScreenPoints[0].color,
+    isErase,
+    offsetX: 0, offsetY: 0,
+  };
+  strokeHistory.push(stroke);
+  drawStrokeToCtx(ctx, stroke);   // fast incremental add — no full redraw needed
+  activeScreenPoints = [];
+}
+
+// ── Pointer events ───────────────────────────────────────────
+overlay.addEventListener('pointerdown', e => {
+  if (state.tool !== 'draw' && state.tool !== 'erase') return;
+  e.preventDefault();
+  overlay.setPointerCapture(e.pointerId);
+  state.isDrawing = true;
+  activeScreenPoints = [];
+  const pressure = e.pressure > 0 ? e.pressure : 0.5;
+  const w = state.tool === 'erase' ? state.brushSize * 6 : Math.max(1, state.brushSize * pressure * 2);
+  activeScreenPoints.push({ sx: e.clientX, sy: e.clientY, color: state.strokeColor, w });
+});
+
+overlay.addEventListener('pointermove', e => {
+  if (!state.isDrawing) return;
+  const events = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
+  for (const ev of events) {
+    const pressure = ev.pressure > 0 ? ev.pressure : 0.5;
+    const w = state.tool === 'erase' ? state.brushSize * 6 : Math.max(1, state.brushSize * pressure * 2);
+    activeScreenPoints.push({ sx: ev.clientX, sy: ev.clientY, color: state.strokeColor, w });
+  }
+  scheduleOverlayRender();
+});
+
+overlay.addEventListener('pointerup', () => {
+  if (!state.isDrawing) return;
+  state.isDrawing = false;
+  commitStroke(state.tool === 'erase');
+});
+overlay.addEventListener('pointercancel', () => {
+  if (!state.isDrawing) return;
+  state.isDrawing = false;
+  commitStroke(state.tool === 'erase');
+});
+
+// ── Select-mode stroke picking & dragging ────────────────────
+// In select mode, clicking on the canvas checks if the pointer is near
+// any stroke and lets the user drag it.
+
+let selectedStroke  = null;   // reference into strokeHistory
+let strokeDragStart = null;   // { mx, my, ox, oy } — mouse and offset at drag start
+
+// Bounding box of a stroke (canvas space, ignoring offset for hit-test speed)
+function strokeBounds(s) {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const p of s.points) {
+    if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
+    if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
+  }
+  const pad = 20;
+  return { minX: minX - pad, minY: minY - pad, maxX: maxX + pad, maxY: maxY + pad };
+}
+
+// Hit-test: is canvas point (cx,cy) within ~12px of any point in the stroke?
+function strokeHitTest(s, cx, cy) {
+  const ox = s.offsetX || 0, oy = s.offsetY || 0;
+  const thresh = Math.max(12, (s.points[0]?.w || 4)) / _tz;
+  const b = strokeBounds(s);
+  // Quick bbox reject
+  if (cx < b.minX + ox - thresh || cx > b.maxX + ox + thresh ||
+      cy < b.minY + oy - thresh || cy > b.maxY + oy + thresh) return false;
+  for (const p of s.points) {
+    const dx = p.x + ox - cx, dy = p.y + oy - cy;
+    if (dx*dx + dy*dy < thresh*thresh) return true;
+  }
+  return false;
+}
+
+// Draw selection highlight around a stroke on the overlay
+function drawSelectionHighlight(s) {
+  octx.clearRect(0, 0, overlay.width, overlay.height);
+  if (!s) return;
+  const ox = s.offsetX || 0, oy = s.offsetY || 0;
+  // Dashed bounding box in canvas space → screen space
+  const b = strokeBounds(s);
+  const s1 = canvasToScreen(b.minX + ox, b.minY + oy);
+  const s2 = canvasToScreen(b.maxX + ox, b.maxY + oy);
+  const sx1 = s1.x, sy1 = s1.y, sx2 = s2.x, sy2 = s2.y;
+  octx.save();
+  octx.strokeStyle = '#e8500a';
+  octx.lineWidth = 1.5;
+  octx.setLineDash([5, 4]);
+  octx.strokeRect(sx1, sy1, sx2 - sx1, sy2 - sy1);
+  octx.restore();
+}
+
+// Hook select-mode mouse events onto the overlay
+overlay.addEventListener('mousedown', e => {
+  if (state.tool !== 'select' || e.button !== 0) return;
+  const cp = screenToCanvas(e.clientX, e.clientY);
+  // Find topmost stroke under cursor (iterate in reverse = top-drawn first)
+  let hit = null;
+  for (let i = strokeHistory.length - 1; i >= 0; i--) {
+    if (strokeHitTest(strokeHistory[i], cp.x, cp.y)) { hit = strokeHistory[i]; break; }
+  }
+  if (!hit) {
+    selectedStroke = null;
+    octx.clearRect(0, 0, overlay.width, overlay.height);
+    return;
+  }
+  selectedStroke = hit;
+  strokeDragStart = { mx: cp.x, my: cp.y, ox: hit.offsetX, oy: hit.offsetY };
+  drawSelectionHighlight(hit);
+  e.stopPropagation();
+
+  const onMove = ev => {
+    if (!strokeDragStart) return;
+    const cp2 = screenToCanvas(ev.clientX, ev.clientY);
+    selectedStroke.offsetX = strokeDragStart.ox + (cp2.x - strokeDragStart.mx);
+    selectedStroke.offsetY = strokeDragStart.oy + (cp2.y - strokeDragStart.my);
+    redrawAllStrokes();
+    drawSelectionHighlight(selectedStroke);
+  };
+  const onUp = () => {
+    strokeDragStart = null;
+    window.removeEventListener('mousemove', onMove);
+    window.removeEventListener('mouseup', onUp);
+  };
+  window.addEventListener('mousemove', onMove);
+  window.addEventListener('mouseup', onUp);
+});
+
+document.getElementById('btn-clear-draw').addEventListener('click', () => {
+  strokeHistory = [];
+  selectedStroke = null;
+  ctx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+  octx.clearRect(0, 0, overlay.width, overlay.height);
+});
+
+// ═══════════════════════════════════════════════════════════
+// DRAGGING UTILITY
+// ═══════════════════════════════════════════════════════════
+function makeDraggable(el, handleEl, onDrag) {
+  let startX, startY, startL, startT, dragging = false;
+  handleEl.addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
+    e.stopPropagation(); e.preventDefault();
+    dragging = true;
+    startX = e.clientX; startY = e.clientY;
+    startL = parseInt(el.style.left) || 0;
+    startT = parseInt(el.style.top) || 0;
+    const onMove = ev => {
+      if (!dragging) return;
+      const dx = (ev.clientX - startX) / state.zoom;
+      const dy = (ev.clientY - startY) / state.zoom;
+      el.style.left = (startL + dx) + 'px';
+      el.style.top  = (startT + dy) + 'px';
+      if (onDrag) onDrag();
+    };
+    const onUp = () => { dragging = false; window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  });
+}
+
+function makeResizable(el, onResize) {
+  const handle = el.querySelector('.sb-resize');
+  if (!handle) return;
+  handle.addEventListener('mousedown', e => {
+    e.stopPropagation(); e.preventDefault();
+    const startX = e.clientX, startY = e.clientY;
+    const startW = el.offsetWidth, startH = el.offsetHeight;
+    const onMove = ev => {
+      const dw = (ev.clientX - startX) / state.zoom;
+      const dh = (ev.clientY - startY) / state.zoom;
+      el.style.width  = Math.max(160, startW + dw) + 'px';
+      el.style.height = Math.max(120, startH + dh) + 'px';
+      if (onResize) onResize();
+    };
+    const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// STORYBOARD FRAMES
+// ═══════════════════════════════════════════════════════════
+function addFrame(opts) {
+  state.frameCount++;
+  const id = 'frame-' + Date.now();
+  const x = opts?.x ?? (Math.random() * 400 + 200);
+  const y = opts?.y ?? (Math.random() * 300 + 150);
+  const w = opts?.w ?? 280;
+  const h = opts?.h ?? 200;
+  const title = opts?.title ?? `Frame ${state.frameCount}`;
+  const activeTab = opts?.activeTab ?? 'draw';
+  const textContent = opts?.textContent ?? '';
+  const imgSrc = opts?.imgSrc ?? null;
+
+  const frame = document.createElement('div');
+  frame.className = 'sb-frame';
+  frame.id = id;
+  frame.style.left = x + 'px';
+  frame.style.top  = y + 'px';
+  frame.style.width  = w + 'px';
+  frame.style.height = h + 'px';
+
+  frame.innerHTML = `
+    <div class="sb-frame-header">
+      <input class="sb-frame-title" value="${title}" placeholder="Label…" readonly title="Right-click to rename">
+      <button class="sb-frame-btn del" title="Delete">✕</button>
+    </div>
+    <div class="sb-frame-body">
+      <div class="sb-frame-tabs">
+        <button class="sb-tab ${activeTab==='draw'?'active':''}" data-tab="draw">DRAW</button>
+        <button class="sb-tab ${activeTab==='text'?'active':''}" data-tab="text">TEXT</button>
+        <button class="sb-tab ${activeTab==='image'?'active':''}" data-tab="image">MEDIA</button>
+      </div>
+      <div class="sb-frame-content">
+        <div class="sb-pane" data-pane="draw" style="display:${activeTab==='draw'?'block':'none'};width:100%;height:100%;position:absolute;">
+          <canvas class="sb-draw-canvas"></canvas>
+        </div>
+        <div class="sb-pane" data-pane="text" style="display:${activeTab==='text'?'flex':'none'};width:100%;height:100%;position:absolute;">
+          <textarea class="sb-text-area" placeholder="Notes, descriptions, directions…">${textContent}</textarea>
+        </div>
+        <div class="sb-pane" data-pane="image" style="display:${activeTab==='image'?'flex':'none'};width:100%;height:100%;position:absolute;">
+          <div class="sb-image-area" id="media-area-${id}">
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="sb-resize"></div>
+  `;
+
+  infiniteCanvas.appendChild(frame);
+
+  // Tabs
+  frame.querySelectorAll('.sb-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      frame.querySelectorAll('.sb-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      frame.querySelectorAll('.sb-pane').forEach(p => p.style.display = 'none');
+      const pane = frame.querySelector(`[data-pane="${tab.dataset.tab}"]`);
+      pane.style.display = tab.dataset.tab === 'text' ? 'flex' : 'block';
+      if (tab.dataset.tab === 'draw') resizeSbCanvas(frame);
+    });
+  });
+
+  // Delete
+  frame.querySelector('.sb-frame-btn.del').addEventListener('click', () => frame.remove());
+
+  // Right-click on header → edit title
+  const titleInput = frame.querySelector('.sb-frame-title');
+  frame.querySelector('.sb-frame-header').addEventListener('contextmenu', e => {
+    e.preventDefault();
+    titleInput.removeAttribute('readonly');
+    titleInput.classList.add('editing');
+    titleInput.focus();
+    titleInput.select();
+  });
+  titleInput.addEventListener('blur', () => {
+    titleInput.setAttribute('readonly', '');
+    titleInput.classList.remove('editing');
+  });
+  titleInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { titleInput.blur(); }
+  });
+
+  // Media chooser inside frame
+  const mediaArea = frame.querySelector(`#media-area-${id}`);
+
+  function showChooser() {
+    mediaArea.innerHTML = `<div class="sb-media-chooser">
+      <div class="sb-img-placeholder">&#127916; No media</div>
+      <button class="sb-img-upload" data-action="image">&#128444; Image</button>
+      <button class="sb-img-upload" data-action="video">&#127916; Video file</button>
+      <button class="sb-img-upload" data-action="youtube">&#9654; YouTube link</button>
+    </div>`;
+    attachMediaChooser();
+  }
+
+  function setMediaContent(html) {
+    // Wrap media in a container so the swap button can sit on top
+    mediaArea.innerHTML = `<div class="sb-media-wrap">
+      ${html}
+      <button class="sb-media-swap" title="Change media">&#8635; swap</button>
+    </div>`;
+    // Swap button returns to chooser
+    mediaArea.querySelector('.sb-media-swap').addEventListener('click', e => {
+      e.stopPropagation();
+      showChooser();
+    });
+  }
+
+  function attachMediaChooser() {
+    mediaArea.querySelectorAll('.sb-img-upload').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        const action = btn.dataset.action;
+        if (action === 'image') {
+          const inp = document.createElement('input');
+          inp.type = 'file'; inp.accept = 'image/*,.tiff,.tif';
+          inp.onchange = () => {
+            const file = inp.files[0]; if (!file) return;
+            const reader = new FileReader();
+            reader.onload = ev => setMediaContent(`<img src="${ev.target.result}" alt="" style="max-width:100%;max-height:100%;object-fit:contain;">`);
+            reader.readAsDataURL(file);
+          };
+          inp.click();
+        } else if (action === 'video') {
+          const inp = document.createElement('input');
+          inp.type = 'file'; inp.accept = 'video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov';
+          inp.onchange = () => {
+            const file = inp.files[0]; if (!file) return;
+            const url = URL.createObjectURL(file);
+            setMediaContent(`<video class="sb-media-video" src="${url}" controls style="max-width:100%;max-height:100%;"></video>`);
+          };
+          inp.click();
+        } else if (action === 'youtube') {
+          const raw = prompt('Paste a YouTube URL or video ID:');
+          if (!raw) return;
+          // Extract video ID from various YouTube URL formats
+          let vid = raw.trim();
+          const m = vid.match(/(?:v=|youtu\.be\/|embed\/)([a-zA-Z0-9_-]{11})/);
+          if (m) vid = m[1];
+          if (vid.length !== 11) { alert('Could not find a valid YouTube video ID in that URL.'); return; }
+          setMediaContent(`<iframe class="sb-media-iframe" src="https://www.youtube.com/embed/${vid}?rel=0" frameborder="0" allowfullscreen allow="autoplay; encrypted-media" style="width:100%;height:100%;min-height:160px;border:none;"></iframe>`);
+        }
+      });
+    });
+  }
+
+  // Initialise media pane — restore saved media or show chooser
+  if (opts && opts.imgSrc) {
+    const src = opts.imgSrc;
+    if (src.startsWith('yt:')) {
+      setMediaContent(`<iframe class="sb-media-iframe" src="https://www.youtube.com/embed/${src.slice(3)}?rel=0" frameborder="0" allowfullscreen allow="autoplay; encrypted-media" style="width:100%;height:100%;min-height:160px;border:none;"></iframe>`);
+    } else if (src.startsWith('data:video') || src.match(/\.(mp4|webm|mov)/i)) {
+      setMediaContent(`<video class="sb-media-video" src="${src}" controls style="max-width:100%;max-height:100%;"></video>`);
+    } else {
+      setMediaContent(`<img src="${src}" alt="" style="max-width:100%;max-height:100%;object-fit:contain;">`);
+    }
+  } else {
+    showChooser();
+  }
+
+  // Drawing inside frame
+  setupFrameDrawing(frame);
+
+  // Drag & resize
+  const header = frame.querySelector('.sb-frame-header');
+  makeDraggable(frame, header);
+  makeResizable(frame, () => resizeSbCanvas(frame));
+
+  resizeSbCanvas(frame);
+
+  // Bring to front on click
+  frame.addEventListener('mousedown', () => {
+    document.querySelectorAll('.sb-frame').forEach(f => f.style.zIndex = 40);
+    frame.style.zIndex = 45;
+  });
+
+  return frame;
+}
+
+function resizeSbCanvas(frame) {
+  const c = frame.querySelector('.sb-draw-canvas');
+  if (!c) return;
+  const pane = frame.querySelector('[data-pane="draw"]');
+  if (!pane) return;
+  const pw = pane.offsetWidth, ph = pane.offsetHeight;
+  if (pw < 10 || ph < 10) return;
+  // Preserve drawing
+  const tmp = document.createElement('canvas');
+  tmp.width = c.width; tmp.height = c.height;
+  tmp.getContext('2d').drawImage(c, 0, 0);
+  c.width = pw; c.height = ph;
+  c.getContext('2d').drawImage(tmp, 0, 0);
+}
+
+function setupFrameDrawing(frame) {
+  const c = frame.querySelector('.sb-draw-canvas');
+  const fctx = c.getContext('2d');
+  let drawing = false;
+
+  c.addEventListener('pointerdown', e => {
+    e.stopPropagation();
+    if (state.tool === 'select') return; // allow only when not in select mode... actually frame draw is independent
+    drawing = true;
+    c.setPointerCapture(e.pointerId);
+    const r = c.getBoundingClientRect();
+    fctx.beginPath();
+    fctx.moveTo((e.clientX - r.left), (e.clientY - r.top));
+    fctx.strokeStyle = state.strokeColor;
+    fctx.lineWidth = Math.max(1, state.brushSize * (e.pressure > 0 ? e.pressure * 2 : 1));
+    fctx.lineCap = 'round'; fctx.lineJoin = 'round';
+  });
+
+  c.addEventListener('pointermove', e => {
+    if (!drawing) return;
+    const r = c.getBoundingClientRect();
+    const pressure = e.pressure > 0 ? e.pressure : 0.5;
+    fctx.lineWidth = Math.max(1, state.brushSize * pressure * 2);
+    fctx.strokeStyle = state.strokeColor;
+    fctx.lineTo((e.clientX - r.left), (e.clientY - r.top));
+    fctx.stroke();
+    fctx.beginPath();
+    fctx.moveTo((e.clientX - r.left), (e.clientY - r.top));
+  });
+
+  c.addEventListener('pointerup', () => drawing = false);
+  c.addEventListener('pointercancel', () => drawing = false);
+}
+
+document.getElementById('btn-add-frame').addEventListener('click', () => addFrame());
+
+// ═══════════════════════════════════════════════════════════
+// TEXT LABELS
+// ═══════════════════════════════════════════════════════════
+function addLabel(x, y, text) {
+  state.labelCount++;
+  const el = document.createElement('div');
+  el.className = 'canvas-label';
+  el.style.left = x + 'px';
+  el.style.top  = y + 'px';
+
+  const input = document.createElement('input');
+  input.className = 'canvas-label-input';
+  input.value = text || '';
+  input.placeholder = 'Type here…';
+  input.style.width = '200px';
+  input.addEventListener('mousedown', e => e.stopPropagation());
+
+  const del = document.createElement('button');
+  del.className = 'lbl-del'; del.textContent = '✕';
+  del.addEventListener('click', () => el.remove());
+
+  el.appendChild(input);
+  el.appendChild(del);
+  infiniteCanvas.appendChild(el);
+  makeDraggable(el, el);
+  setTimeout(() => input.focus(), 50);
+  return el;
+}
+
+// ═══════════════════════════════════════════════════════════
+// CANVAS IMAGES
+// ═══════════════════════════════════════════════════════════
+function addCanvasImage(src, x, y) {
+  const el = document.createElement('div');
+  el.className = 'canvas-image';
+  el.style.left = (x ?? 400) + 'px';
+  el.style.top  = (y ?? 300) + 'px';
+
+  const img = document.createElement('img');
+  img.src = src;
+  img.draggable = false;
+
+  const del = document.createElement('button');
+  del.className = 'img-del'; del.textContent = '✕';
+  del.addEventListener('click', () => el.remove());
+
+  // Resize handle
+  const resizeH = document.createElement('div');
+  resizeH.className = 'sb-resize';
+  resizeH.style.position = 'absolute';
+
+  el.appendChild(img);
+  el.appendChild(del);
+  el.appendChild(resizeH);
+  infiniteCanvas.appendChild(el);
+  makeDraggable(el, el);
+
+  // Resize image
+  resizeH.addEventListener('mousedown', e => {
+    e.stopPropagation(); e.preventDefault();
+    const sx = e.clientX, sy = e.clientY;
+    const sw = img.offsetWidth || 200, sh = img.offsetHeight || 200;
+    const onMove = ev => {
+      img.style.maxWidth = 'none';
+      img.style.width  = Math.max(60, sw + (ev.clientX - sx) / state.zoom) + 'px';
+      img.style.height = Math.max(60, sh + (ev.clientY - sy) / state.zoom) + 'px';
+    };
+    const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  });
+
+  return el;
+}
+
+document.getElementById('btn-add-image').addEventListener('click', () => document.getElementById('image-input').click());
+document.getElementById('image-input').addEventListener('change', e => {
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const pos = toCanvas(window.innerWidth / 2, window.innerHeight / 2);
+    addCanvasImage(ev.target.result, pos.x - 150, pos.y - 100);
+  };
+  reader.readAsDataURL(file);
+  e.target.value = '';
+});
+
+// ═══════════════════════════════════════════════════════════
+// AUDIO / WAVEFORM
+// ═══════════════════════════════════════════════════════════
+let audioContext = null;
+function getAudioContext() {
+  if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  return audioContext;
+}
+
+function addWaveform(opts) {
+  state.waveformCount++;
+  const id = 'waveform-' + Date.now();
+  const x = opts?.x ?? 200;
+  const y = opts?.y ?? 300;
+  const w = opts?.w ?? 700;
+  const filename = opts?.filename ?? 'Audio Track';
+  const samples = opts?.samples ?? null;
+
+  const block = document.createElement('div');
+  block.className = 'waveform-block';
+  block.id = id;
+  block.style.left = x + 'px';
+  block.style.top  = y + 'px';
+  block.style.width = w + 'px';
+
+  block.innerHTML = `
+    <div class="waveform-header">
+      <span class="waveform-title">${filename}</span>
+      <button class="waveform-ctrl" id="wc-play-${id}" title="Play/Pause">▶</button>
+      <button class="waveform-ctrl" id="wc-stop-${id}" title="Stop">■</button>
+      <div class="waveform-vol-wrap">
+        <button class="waveform-vol-btn" id="wc-mute-${id}" title="Mute">🔊</button>
+        <input class="waveform-vol-slider" id="wc-vol-${id}" type="range" min="0" max="1" step="0.01" value="1" title="Volume">
+      </div>
+      <button class="waveform-ctrl active" id="wc-lock-${id}" title="Lock position">⊟</button>
+      <button class="waveform-ctrl" id="wc-del-${id}" title="Remove">✕</button>
+    </div>
+    <div class="waveform-body">
+      <canvas class="waveform-canvas" id="wc-canvas-${id}"></canvas>
+      <div class="waveform-playhead" id="wc-head-${id}"></div>
+    </div>
+    <div class="waveform-resize-l" id="wc-rl-${id}"></div>
+    <div class="waveform-resize-r" id="wc-rr-${id}"></div>
+  `;
+
+  infiniteCanvas.appendChild(block);
+
+  const header = block.querySelector('.waveform-header');
+  const canvas = block.querySelector('.waveform-canvas');
+  const playhead = block.querySelector('.waveform-playhead');
+
+  // Internal state for this waveform
+  const gainNode = getAudioContext().createGain();
+  gainNode.gain.value = 1;
+  gainNode.connect(getAudioContext().destination);
+  const wState = { locked: false, audioBuffer: null, source: null, playing: false, startTime: 0, pauseOffset: 0, samples: samples, volume: 1, muted: false };
+
+  // Draw waveform from samples
+  function renderWaveform() {
+    const W = canvas.offsetWidth, H = canvas.offsetHeight;
+    canvas.width = W; canvas.height = H;
+    const wctx = canvas.getContext('2d');
+    wctx.clearRect(0, 0, W, H);
+    if (!wState.samples || wState.samples.length === 0) {
+      wctx.fillStyle = '#333';
+      wctx.font = '11px DM Mono, monospace';
+      wctx.fillText('Loading…', W / 2 - 25, H / 2 + 4);
+      return;
+    }
+    // Background gradient
+    const grd = wctx.createLinearGradient(0, 0, 0, H);
+    grd.addColorStop(0, '#2a1a10');
+    grd.addColorStop(1, '#1a1814');
+    wctx.fillStyle = grd;
+    wctx.fillRect(0, 0, W, H);
+
+    // Waveform bars
+    const samps = wState.samples;
+    const step = Math.max(1, Math.floor(samps.length / W));
+    const mid = H / 2;
+    wctx.fillStyle = '#e8500a';
+    for (let i = 0; i < W; i++) {
+      let max = 0;
+      for (let j = 0; j < step; j++) {
+        const v = Math.abs(samps[i * step + j] || 0);
+        if (v > max) max = v;
+      }
+      const h = Math.max(1, max * (H - 4));
+      const gbar = wctx.createLinearGradient(0, mid - h / 2, 0, mid + h / 2);
+      gbar.addColorStop(0, '#f0a030');
+      gbar.addColorStop(0.5, '#e8500a');
+      gbar.addColorStop(1, '#f0a030');
+      wctx.fillStyle = gbar;
+      wctx.fillRect(i, mid - h / 2, 1, h);
+    }
+
+    // Center line
+    wctx.strokeStyle = '#333';
+    wctx.lineWidth = 1;
+    wctx.beginPath();
+    wctx.moveTo(0, mid);
+    wctx.lineTo(W, mid);
+    wctx.stroke();
+  }
+
+  // Load audio samples from buffer
+  function loadSamples(buffer) {
+    wState.audioBuffer = buffer;
+    const data = buffer.getChannelData(0);
+    const targetSamples = 4000;
+    const step = Math.floor(data.length / targetSamples);
+    const s = [];
+    for (let i = 0; i < targetSamples; i++) s.push(Math.abs(data[i * step]));
+    wState.samples = s;
+    renderWaveform();
+  }
+
+  // Playhead animation
+  let animId = null;
+  function animatePlayhead() {
+    if (!wState.playing || !wState.audioBuffer) return;
+    const elapsed = getAudioContext().currentTime - wState.startTime + wState.pauseOffset;
+    const progress = Math.min(1, elapsed / wState.audioBuffer.duration);
+    playhead.style.left = (progress * 100) + '%';
+    if (progress < 1) animId = requestAnimationFrame(animatePlayhead);
+    else stopAudio();
+  }
+
+  function playAudio() {
+    if (!wState.audioBuffer) return;
+    if (wState.playing) return;
+    getAudioContext().resume();
+    wState.source = getAudioContext().createBufferSource();
+    wState.source.buffer = wState.audioBuffer;
+    wState.source.connect(gainNode);
+    wState.source.start(0, wState.pauseOffset);
+    wState.startTime = getAudioContext().currentTime;
+    wState.playing = true;
+    block.querySelector(`#wc-play-${id}`).textContent = '⏸';
+    animatePlayhead();
+  }
+
+  function pauseAudio() {
+    if (!wState.playing) return;
+    wState.pauseOffset += getAudioContext().currentTime - wState.startTime;
+    wState.source.stop();
+    wState.playing = false;
+    block.querySelector(`#wc-play-${id}`).textContent = '▶';
+    cancelAnimationFrame(animId);
+  }
+
+  function stopAudio() {
+    if (wState.source && wState.playing) { try { wState.source.stop(); } catch(e) {} }
+    wState.playing = false; wState.pauseOffset = 0;
+    block.querySelector(`#wc-play-${id}`).textContent = '▶';
+    playhead.style.left = '0%';
+    cancelAnimationFrame(animId);
+  }
+
+  block.querySelector(`#wc-play-${id}`).addEventListener('click', () => { wState.playing ? pauseAudio() : playAudio(); });
+  block.querySelector(`#wc-stop-${id}`).addEventListener('click', stopAudio);
+  block.querySelector(`#wc-del-${id}`).addEventListener('click', () => { stopAudio(); block.remove(); });
+
+  // Volume slider
+  const volSlider = block.querySelector(`#wc-vol-${id}`);
+  const muteBtn   = block.querySelector(`#wc-mute-${id}`);
+
+  function applyVolume() {
+    gainNode.gain.value = wState.muted ? 0 : wState.volume;
+    muteBtn.textContent = wState.muted ? '🔇' : wState.volume === 0 ? '🔇' : wState.volume < 0.5 ? '🔉' : '🔊';
+    muteBtn.classList.toggle('muted', wState.muted);
+  }
+
+  volSlider.addEventListener('input', e => {
+    wState.volume = parseFloat(e.target.value);
+    if (wState.muted && wState.volume > 0) { wState.muted = false; }
+    applyVolume();
+  });
+  volSlider.addEventListener('mousedown', e => e.stopPropagation()); // prevent drag-to-pan conflict
+
+  muteBtn.addEventListener('click', () => {
+    wState.muted = !wState.muted;
+    applyVolume();
+  });
+
+  // Lock toggle
+  const lockBtn = block.querySelector(`#wc-lock-${id}`);
+  lockBtn.addEventListener('click', () => {
+    wState.locked = !wState.locked;
+    block.classList.toggle('locked', wState.locked);
+    lockBtn.title = wState.locked ? 'Unlock position' : 'Lock position';
+    lockBtn.textContent = wState.locked ? '🔒' : '⊟';
+    header.style.cursor = wState.locked ? 'default' : 'move';
+  });
+
+  // ── Waveform scrubbing (click or drag on waveform body) ──
+  const waveformBody = block.querySelector('.waveform-body');
+  waveformBody.style.cursor = 'col-resize';
+
+  function scrubTo(clientX) {
+    if (!wState.audioBuffer) return;
+    const r = waveformBody.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (clientX - r.left) / r.width));
+    const targetTime = ratio * wState.audioBuffer.duration;
+    const wasPlaying = wState.playing;
+    if (wasPlaying) {
+      try { wState.source.stop(); } catch(e) {}
+      cancelAnimationFrame(animId);
+      wState.playing = false;
+    }
+    wState.pauseOffset = targetTime;
+    playhead.style.left = (ratio * 100) + '%';
+    if (wasPlaying) playAudio();
+  }
+
+  let isScrubbing = false;
+  waveformBody.addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    isScrubbing = true;
+    scrubTo(e.clientX);
+    const onMove = ev => { if (isScrubbing) scrubTo(ev.clientX); };
+    const onUp = () => {
+      isScrubbing = false;
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  });
+
+  // Drag (only when not locked)
+  makeDraggable(block, header, null);
+  // Override: check lock before drag
+  header._dragOverride = true;
+  header.addEventListener('mousedown', e => { if (wState.locked) e.stopImmediatePropagation(); }, true);
+
+  // Resize handles — stretch width
+  function makeWaveformResize(handleEl, side) {
+    handleEl.addEventListener('mousedown', e => {
+      if (wState.locked && side === 'l') return; // locked: can still stretch
+      e.stopPropagation(); e.preventDefault();
+      const sx = e.clientX;
+      const sw = parseInt(block.style.width) || block.offsetWidth;
+      const sl = parseInt(block.style.left) || 0;
+      const onMove = ev => {
+        const dx = (ev.clientX - sx) / state.zoom;
+        if (side === 'r') {
+          block.style.width = Math.max(300, sw + dx) + 'px';
+        } else {
+          const newW = Math.max(300, sw - dx);
+          if (!wState.locked) block.style.left = (sl + sw - newW) + 'px';
+          block.style.width = newW + 'px';
+        }
+        renderWaveform();
+      };
+      const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+    });
+  }
+
+  makeWaveformResize(block.querySelector(`#wc-rl-${id}`), 'l');
+  makeWaveformResize(block.querySelector(`#wc-rr-${id}`), 'r');
+
+  // Initial render after layout
+  requestAnimationFrame(() => {
+    renderWaveform();
+    // Observe resize
+    new ResizeObserver(() => renderWaveform()).observe(block);
+  });
+
+  return { block, wState, loadSamples };
+}
+
+// Audio input
+document.getElementById('btn-add-audio').addEventListener('click', () => document.getElementById('audio-input').click());
+document.getElementById('audio-input').addEventListener('change', e => {
+  const file = e.target.files[0]; if (!file) return;
+  const pos = toCanvas(window.innerWidth / 2, (window.innerHeight - 52) * 0.6);
+  const { block, wState, loadSamples } = addWaveform({ x: pos.x - 300, y: pos.y, filename: file.name });
+  document.getElementById('status-audio-info').innerHTML = `AUDIO: <span>${file.name}</span>`;
+
+  const reader = new FileReader();
+  reader.onload = ev => {
+    getAudioContext().decodeAudioData(ev.target.result.slice(0), buf => loadSamples(buf));
+  };
+  reader.readAsArrayBuffer(file);
+  e.target.value = '';
+});
+
+// ═══════════════════════════════════════════════════════════
+// DRAG-AND-DROP files onto canvas
+// ═══════════════════════════════════════════════════════════
+const dropOverlay = document.getElementById('drop-overlay');
+container.addEventListener('dragenter', e => { e.preventDefault(); dropOverlay.classList.add('visible'); });
+container.addEventListener('dragleave', e => { if (e.relatedTarget === null || !container.contains(e.relatedTarget)) dropOverlay.classList.remove('visible'); });
+container.addEventListener('dragover', e => e.preventDefault());
+container.addEventListener('drop', e => {
+  e.preventDefault();
+  dropOverlay.classList.remove('visible');
+  const pos = toCanvas(e.clientX, e.clientY);
+  Array.from(e.dataTransfer.files).forEach(file => {
+    if (file.type.startsWith('audio/') || file.name.match(/\.(mp3|wav|ogg|flac|aac|m4a)$/i)) {
+      const { block, loadSamples } = addWaveform({ x: pos.x - 300, y: pos.y, filename: file.name });
+      const reader = new FileReader();
+      reader.onload = ev => { getAudioContext().decodeAudioData(ev.target.result.slice(0), buf => loadSamples(buf)); };
+      reader.readAsArrayBuffer(file);
+    } else if (file.type.startsWith('image/') || file.name.match(/\.(jpg|jpeg|png|gif|webp|tiff|tif|bmp)$/i)) {
+      const reader = new FileReader();
+      reader.onload = ev => addCanvasImage(ev.target.result, pos.x, pos.y);
+      reader.readAsDataURL(file);
+    }
+  });
+});
+
+// ═══════════════════════════════════════════════════════════
+// SAVE / LOAD
+// ═══════════════════════════════════════════════════════════
+document.getElementById('btn-save').addEventListener('click', saveProject);
+document.getElementById('btn-load').addEventListener('click', () => document.getElementById('project-input').click());
+document.getElementById('project-input').addEventListener('change', e => {
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => { try { loadProject(JSON.parse(ev.target.result)); } catch(err) { alert('Could not load project file.'); } };
+  reader.readAsText(file);
+  e.target.value = '';
+});
+
+function saveProject() {
+  const proj = {
+    version: 1,
+    pan: { x: state.panX, y: state.panY },
+    zoom: state.zoom,
+    frames: [],
+    labels: [],
+    images: [],
+    drawingData: drawCanvas.toDataURL(),
+    strokeHistory: strokeHistory.map(s => ({
+      points: s.points,
+      color: s.color,
+      isErase: s.isErase,
+      offsetX: s.offsetX || 0,
+      offsetY: s.offsetY || 0,
+    })),
+  };
+
+  // Frames
+  document.querySelectorAll('.sb-frame').forEach(frame => {
+    const title = frame.querySelector('.sb-frame-title').value;
+    const activeTab = frame.querySelector('.sb-tab.active')?.dataset.tab ?? 'draw';
+    const textContent = frame.querySelector('.sb-text-area')?.value ?? '';
+    const imgEl = frame.querySelector('[data-pane="image"] img');
+    const vidEl = frame.querySelector('[data-pane="image"] video');
+    const ifrEl = frame.querySelector('[data-pane="image"] iframe');
+    const drawC = frame.querySelector('.sb-draw-canvas');
+    let imgSrc = null;
+    if (imgEl) imgSrc = imgEl.src;
+    else if (vidEl) imgSrc = vidEl.src;
+    else if (ifrEl) {
+      const ytMatch = ifrEl.src.match(/embed\/([a-zA-Z0-9_-]{11})/);
+      if (ytMatch) imgSrc = 'yt:' + ytMatch[1];
+    }
+    proj.frames.push({
+      x: parseFloat(frame.style.left), y: parseFloat(frame.style.top),
+      w: frame.offsetWidth, h: frame.offsetHeight,
+      title, activeTab, textContent,
+      imgSrc,
+      drawData: drawC ? drawC.toDataURL() : null,
+    });
+  });
+
+  // Labels
+  document.querySelectorAll('.canvas-label').forEach(lbl => {
+    proj.labels.push({
+      x: parseFloat(lbl.style.left), y: parseFloat(lbl.style.top),
+      text: lbl.querySelector('input').value,
+    });
+  });
+
+  // Canvas images
+  document.querySelectorAll('.canvas-image').forEach(ci => {
+    const img = ci.querySelector('img');
+    proj.images.push({
+      x: parseFloat(ci.style.left), y: parseFloat(ci.style.top),
+      src: img.src, w: img.style.width, h: img.style.height,
+    });
+  });
+
+  const blob = new Blob([JSON.stringify(proj, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'musicboard-project.json';
+  a.click();
+}
+
+function loadProject(proj) {
+  // Clear existing
+  document.querySelectorAll('.sb-frame, .canvas-label, .canvas-image, .waveform-block').forEach(el => el.remove());
+  ctx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+  state.frameCount = 0; state.labelCount = 0; state.imageCount = 0;
+
+  state.panX = proj.pan?.x ?? 100;
+  state.panY = proj.pan?.y ?? 100;
+  state.zoom = proj.zoom ?? 1;
+  applyTransform();
+
+  // Restore stroke history (vector) — preferred over raster fallback
+  strokeHistory = [];
+  selectedStroke = null;
+  octx.clearRect(0, 0, overlay.width, overlay.height);
+  if (proj.strokeHistory && proj.strokeHistory.length > 0) {
+    strokeHistory = proj.strokeHistory;
+    redrawAllStrokes();
+  } else if (proj.drawingData) {
+    // Legacy raster fallback for old saves
+    const img = new Image();
+    img.onload = () => ctx.drawImage(img, 0, 0);
+    img.src = proj.drawingData;
+  }
+
+  (proj.frames || []).forEach(f => {
+    const frame = addFrame(f);
+    // Restore draw canvas
+    if (f.drawData) {
+      const dc = frame.querySelector('.sb-draw-canvas');
+      const img = new Image();
+      img.onload = () => { resizeSbCanvas(frame); dc.getContext('2d').drawImage(img, 0, 0, dc.width, dc.height); };
+      img.src = f.drawData;
+    }
+  });
+
+  (proj.labels || []).forEach(l => addLabel(l.x, l.y, l.text));
+
+  (proj.images || []).forEach(im => {
+    const el = addCanvasImage(im.src, im.x, im.y);
+    const img = el.querySelector('img');
+    if (im.w) { img.style.maxWidth = 'none'; img.style.width = im.w; }
+    if (im.h) img.style.height = im.h;
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// TUTORIAL FRAME
+// ═══════════════════════════════════════════════════════════
+const TUTORIAL_TEXT = `MUSICBOARD — HOW TO USE
+
+TOOLS (keyboard shortcuts)
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+▶ Select / Move [V]
+  Click and drag frames, images, or drawn strokes to reposition them. In draw mode, switch back to Select to pick up and move individual doodles.
+
+✎ Draw [D]
+  Freehand drawing directly on the whiteboard or inside a frame's Draw tab. Works with drawing tablets — pressure sensitivity is supported. Use the INK colour picker and SIZE slider in the toolbar to adjust your stroke.
+
+□ Erase [E]
+  Erases freehand ink on the whiteboard canvas. Switch to this tool and draw over any strokes you want to remove.
+
+T  Text Label [T]
+  Click anywhere on the whiteboard to place a freestanding text label. Click the label to type. Drag it to reposition.
+
+FRAMES
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+□  Add Frame [F]
+  Adds a storyboard card to the canvas. Each frame has three tabs:
+  • DRAW  — freehand sketch inside the frame (tablet-friendly)
+  • TEXT  — typed notes, descriptions, shot details
+  • MEDIA — import an image, video file (MP4/WebM/MOV), or embed a YouTube link into the frame
+
+  Drag a frame by its header bar to reposition it.
+  Resize a frame by dragging the handle at the bottom-right corner.
+  Right-click the header bar to rename the frame.
+  Click ✕ in the header to delete the frame.
+
+AUDIO WAVEFORM
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+♫  Add Audio Track [A]
+  Load an audio file (MP3, WAV, FLAC, AAC, etc.) onto the canvas as a visual waveform. You can also drag and drop an audio file directly onto the whiteboard.
+
+  ▶ / ⏸  Play and pause the track.
+  ■       Stop and return to the beginning.
+  🔊      Click to mute/unmute. Drag the volume slider to adjust level.
+  ⊟ / 🔒  Lock the waveform's position so it cannot be accidentally moved (it can still be stretched while locked).
+  Click and drag either side edge of the waveform to stretch or compress its display width — zoom in to see more detail, zoom out for an overview.
+  Click anywhere on the waveform to scrub to that position. Drag to scrub continuously.
+
+IMAGES
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+🖼  Import Image [I]
+  Places a JPG, PNG, TIFF, or GIF onto the canvas as a moveable object. Drag to reposition, drag the bottom-right corner to resize. Hover and click ✕ to remove. You can also drag and drop image files directly onto the whiteboard.
+
+CANVAS NAVIGATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Pan       Middle mouse button + drag
+  Zoom      Scroll wheel (zooms toward cursor position)
+
+UTILITY BUTTONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+⌫ Clear Ink   Removes all freehand ink from the whiteboard (frames are unaffected).
+📂 Load        Open a previously saved MusicBoard project (.json).
+💾 Save        Save your entire project — frames, drawings, labels, images, and canvas position — as a .json file. Reload it any time with Load.
+
+Note: Audio files are not stored in the save file due to browser limitations. You will need to re-add your audio track after loading a project.`;
+
+let tutorialFrame = null;
+
+function openTutorial() {
+  // If already on canvas, just scroll to it and bring to front
+  if (tutorialFrame && document.contains(tutorialFrame)) {
+    tutorialFrame.style.zIndex = 200;
+    // Pan canvas so tutorial is visible
+    const tx = parseFloat(tutorialFrame.style.left) || 100;
+    const ty = parseFloat(tutorialFrame.style.top)  || 100;
+    state.panX = window.innerWidth  / 2 - tx * state.zoom - 200;
+    state.panY = window.innerHeight / 2 - ty * state.zoom - 150;
+    applyTransform();
+    return;
+  }
+  // Create it near current view centre
+  const cx = (window.innerWidth  / 2 - state.panX) / state.zoom - 220;
+  const cy = (window.innerHeight / 2 - state.panY) / state.zoom - 300;
+  tutorialFrame = addFrame({
+    x: cx, y: cy, w: 440, h: 600,
+    title: 'How To Use MusicBoard',
+    activeTab: 'text',
+    textContent: TUTORIAL_TEXT,
+  });
+  tutorialFrame.style.zIndex = 200;
+  // Make textarea monospaced and slightly smaller for the dense text
+  const ta = tutorialFrame.querySelector('.sb-text-area');
+  ta.style.fontSize = '11px';
+  ta.style.lineHeight = '1.7';
+  ta.style.whiteSpace = 'pre';
+}
+
+document.getElementById('btn-tutorial').addEventListener('click', openTutorial);
+
+// ═══════════════════════════════════════════════════════════
+// WELCOME: add one sample frame to get started
+// ═══════════════════════════════════════════════════════════
+window.addEventListener('load', () => {
+  // Center canvas
+  state.panX = 60; state.panY = 80;
+  applyTransform();
+
+  addFrame({ x: 80, y: 60, w: 260, h: 200, title: 'Shot 01 — Intro', activeTab: 'text', textContent: 'Describe your opening shot here…' });
+  addFrame({ x: 380, y: 60, w: 260, h: 200, title: 'Shot 02', activeTab: 'draw' });
+  addFrame({ x: 80, y: 300, w: 260, h: 200, title: 'Shot 03', activeTab: 'draw' });
+
+  // Welcome label
+  const lbl = addLabel(730, 80, '← Drop an audio file anywhere or click ♫ in the toolbar');
+  lbl.querySelector('input').style.width = '460px';
+  lbl.querySelector('input').style.color = '#888';
+  lbl.querySelector('input').style.fontSize = '12px';
+});
+
+// ═══════════════════════════════════════════════════════════
+// PWA — register service worker (only on real HTTP/S origins)
+// ═══════════════════════════════════════════════════════════
+if (location.protocol !== 'file:' && 'serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+
+// Show notice if running as file:// (YouTube won't work)
+if (location.protocol === 'file:') {
+  const notice = document.getElementById('file-notice');
+  if (notice) {
+    notice.classList.add('visible');
+    document.getElementById('file-notice-close').addEventListener('click', () => {
+      notice.classList.remove('visible');
+    });
+  }
+}
+</script>
+</body>
+</html>
