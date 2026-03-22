@@ -171,10 +171,10 @@
     position: fixed;
     top: 0; left: 0;
     pointer-events: none;
-    z-index: 999;           /* above everything, but below toolbar */
-    image-rendering: pixelated;
+    z-index: 6;             /* just above draw-canvas (z:5), below frames (z:40) */
+    will-change: transform; /* GPU compositing hint — reduces paint lag */
   }
-  #stroke-overlay.drawing-mode { pointer-events: all; cursor: crosshair; }
+  #stroke-overlay.drawing-mode { pointer-events: all; cursor: crosshair; z-index: 999; }
 
   /* ── WAVEFORM ── */
   .waveform-block {
@@ -621,9 +621,10 @@ function setTool(t) {
   document.getElementById('status-tool').textContent = t.toUpperCase();
   const dc = document.getElementById('draw-canvas');
   dc.classList.toggle('drawing-mode', t === 'draw' || t === 'erase');
-  // Overlay receives pointer events in draw/erase (drawing) and select (stroke picking)
+  // Overlay only captures pointer events during draw/erase — never in select mode
+  // (select mode hit-tests strokes via the container mousedown handler instead)
   const ov = document.getElementById('stroke-overlay');
-  if (ov) ov.classList.toggle('drawing-mode', t === 'draw' || t === 'erase' || t === 'select');
+  if (ov) ov.classList.toggle('drawing-mode', t === 'draw' || t === 'erase');
   // Clear selection highlight when switching away from select
   if (t !== 'select' && typeof octx !== 'undefined') {
     octx.clearRect(0, 0, overlay.width, overlay.height);
@@ -920,8 +921,9 @@ function drawSelectionHighlight(s) {
   octx.restore();
 }
 
-// Hook select-mode mouse events onto the overlay
-overlay.addEventListener('mousedown', e => {
+// Stroke selection hit-testing — attached to container so overlay
+// doesn't need pointer-events and won't block frames/labels/images.
+container.addEventListener('mousedown', e => {
   if (state.tool !== 'select' || e.button !== 0) return;
   const cp = screenToCanvas(e.clientX, e.clientY);
   // Find topmost stroke under cursor (iterate in reverse = top-drawn first)
@@ -930,10 +932,14 @@ overlay.addEventListener('mousedown', e => {
     if (strokeHitTest(strokeHistory[i], cp.x, cp.y)) { hit = strokeHistory[i]; break; }
   }
   if (!hit) {
-    selectedStroke = null;
-    octx.clearRect(0, 0, overlay.width, overlay.height);
+    // Clicked empty canvas — deselect
+    if (selectedStroke) {
+      selectedStroke = null;
+      octx.clearRect(0, 0, overlay.width, overlay.height);
+    }
     return;
   }
+  // Hit a stroke — select and start drag
   selectedStroke = hit;
   strokeDragStart = { mx: cp.x, my: cp.y, ox: hit.offsetX, oy: hit.offsetY };
   drawSelectionHighlight(hit);
