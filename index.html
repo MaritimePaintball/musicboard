@@ -182,7 +182,7 @@
     background: var(--waveform-bg);
     border: 2px solid var(--accent);
     border-radius: var(--radius);
-    min-width: 300px; height: 90px;
+    min-width: 300px; min-height: 60px; height: 90px;
     z-index: 50;
     display: flex; flex-direction: column;
     box-shadow: var(--shadow);
@@ -191,78 +191,88 @@
   .waveform-block.locked { border-color: var(--accent2); }
 
   .waveform-header {
-    height: 26px; background: #111;
-    display: flex; align-items: center; padding: 0 8px; gap: 6px;
+    height: 52px; background: #111;
+    display: flex; align-items: center; padding: 0 14px; gap: 10px;
     cursor: move; flex-shrink: 0;
   }
   .waveform-block.locked .waveform-header { cursor: default; }
   .waveform-title {
-    font-size: 10px; color: #888; font-family: 'DM Mono', monospace;
+    font-size: 13px; color: #888; font-family: 'DM Mono', monospace;
     flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   .waveform-ctrl {
     background: none; border: none; cursor: pointer;
-    color: #666; font-size: 12px; padding: 2px 4px;
-    border-radius: 2px; line-height: 1;
+    color: #666; font-size: 20px; padding: 4px 8px;
+    border-radius: 3px; line-height: 1;
     transition: color 0.1s;
   }
   .waveform-ctrl:hover { color: #fff; }
   .waveform-ctrl.active { color: var(--accent2); }
 
   .waveform-vol-wrap {
-    display: flex; align-items: center; gap: 5px;
-    padding: 0 4px;
+    display: flex; align-items: center; gap: 8px;
+    padding: 0 6px;
   }
   .waveform-vol-btn {
     background: none; border: none; cursor: pointer;
-    color: #666; font-size: 12px; line-height: 1;
-    padding: 2px 3px; border-radius: 2px; transition: color 0.1s;
+    color: #666; font-size: 20px; line-height: 1;
+    padding: 4px 6px; border-radius: 3px; transition: color 0.1s;
     flex-shrink: 0;
   }
   .waveform-vol-btn:hover { color: #fff; }
   .waveform-vol-btn.muted { color: var(--accent); }
   .waveform-vol-slider {
     -webkit-appearance: none; appearance: none;
-    width: 64px; height: 3px; border-radius: 2px;
+    width: 128px; height: 4px; border-radius: 2px;
     background: #444; outline: none; cursor: pointer;
     accent-color: var(--accent2);
   }
   .waveform-vol-slider::-webkit-slider-thumb {
-    -webkit-appearance: none; width: 11px; height: 11px;
+    -webkit-appearance: none; width: 16px; height: 16px;
     border-radius: 50%; background: var(--accent2); cursor: pointer;
     border: 2px solid #1a1814;
   }
   .waveform-vol-slider::-moz-range-thumb {
-    width: 11px; height: 11px; border-radius: 50%;
+    width: 16px; height: 16px; border-radius: 50%;
     background: var(--accent2); cursor: pointer; border: 2px solid #1a1814;
   }
 
   .waveform-body {
     flex: 1; position: relative; overflow: hidden;
+    cursor: col-resize;
   }
+  /* Canvas fills the body exactly — width set by JS to match block */
   .waveform-canvas {
+    position: absolute; top: 0; left: 0;
     width: 100%; height: 100%; display: block;
   }
+  /* Playhead: absolute px position set by JS from currentTime × pxPerSec */
   .waveform-playhead {
     position: absolute; top: 0; bottom: 0; width: 2px;
     background: var(--waveform-playhead);
-    pointer-events: none; left: 0;
+    pointer-events: none; left: 0; z-index: 2;
+    will-change: left;
   }
-
-  /* Resize handles */
+  /* Resize handles on left and right edges */
   .waveform-resize-l, .waveform-resize-r {
-    position: absolute; top: 26px; bottom: 0; width: 10px;
-    cursor: ew-resize; z-index: 2;
+    position: absolute; top: 52px; bottom: 0; width: 12px;
+    cursor: ew-resize; z-index: 3;
+    display: flex; align-items: center; justify-content: center;
   }
   .waveform-resize-l { left: 0; }
   .waveform-resize-r { right: 0; }
   .waveform-resize-l::after, .waveform-resize-r::after {
-    content: '⋮';
-    position: absolute; top: 50%; transform: translateY(-50%);
-    color: #444; font-size: 14px;
+    content: '⋮'; color: #555; font-size: 14px; pointer-events: none;
   }
-  .waveform-resize-l::after { left: 1px; }
-  .waveform-resize-r::after { right: 1px; }
+  .waveform-resize-b {
+    position: absolute; bottom: 0; left: 12px; right: 12px; height: 8px;
+    cursor: ns-resize; z-index: 3;
+  }
+  .waveform-resize-b::after {
+    content: ''; display: block; margin: 3px auto 0;
+    width: 32px; height: 2px;
+    border-radius: 2px; background: #444;
+  }
 
   /* ── STORYBOARD FRAMES ── */
   .sb-frame {
@@ -621,10 +631,9 @@ function setTool(t) {
   document.getElementById('status-tool').textContent = t.toUpperCase();
   const dc = document.getElementById('draw-canvas');
   dc.classList.toggle('drawing-mode', t === 'draw' || t === 'erase');
-  // Overlay only captures pointer events during draw/erase — never in select mode
-  // (select mode hit-tests strokes via the container mousedown handler instead)
-  const ov = document.getElementById('stroke-overlay');
-  if (ov) ov.classList.toggle('drawing-mode', t === 'draw' || t === 'erase');
+  // Overlay is activated per-stroke via overlayActivate/Deactivate.
+  // When switching tools, always make sure it's deactivated.
+  if (typeof overlayDeactivate === 'function') overlayDeactivate();
   // Clear selection highlight when switching away from select
   if (t !== 'select' && typeof octx !== 'undefined') {
     octx.clearRect(0, 0, overlay.width, overlay.height);
@@ -783,92 +792,112 @@ function drawStrokeToCtx(targetCtx, s) {
   targetCtx.restore();
 }
 
-// ── Live overlay rendering ───────────────────────────────────
-// activeScreenPoints: raw screen coords collected during current stroke
-let activeScreenPoints = [];
+// ── Live drawing directly onto drawCanvas in canvas-space ──────
+// Drawing in canvas-space (not screen-space) means strokes are never
+// clipped at screen edges, regardless of zoom level or pan position.
 
-function renderOverlayStroke() {
-  octx.clearRect(0, 0, overlay.width, overlay.height);
-  if (activeScreenPoints.length < 2) return;
-  octx.save();
-  octx.lineCap  = 'round';
-  octx.lineJoin = 'round';
-  octx.strokeStyle = activeScreenPoints[0].color;
-  octx.beginPath();
-  octx.moveTo(activeScreenPoints[0].sx, activeScreenPoints[0].sy);
-  for (let i = 1; i < activeScreenPoints.length; i++) {
-    const pa = activeScreenPoints[i-1], pb = activeScreenPoints[i];
-    const mx = (pa.sx + pb.sx) / 2, my = (pa.sy + pb.sy) / 2;
-    octx.lineWidth = pb.w;
-    octx.quadraticCurveTo(pa.sx, pa.sy, mx, my);
-  }
-  octx.lineTo(activeScreenPoints[activeScreenPoints.length-1].sx,
-              activeScreenPoints[activeScreenPoints.length-1].sy);
-  octx.stroke();
-  octx.restore();
+let liveStrokeCanvasPoints = []; // canvas-space points for the stroke in progress
+let activeIsErase = false;
+
+// Draw just the newest segment incrementally onto drawCanvas (fast — no full repaint)
+function renderLiveSegment() {
+  const pts = liveStrokeCanvasPoints;
+  if (pts.length < 2) return;
+  const i = pts.length - 1;
+  const pa = pts[i - 1], pb = pts[i];
+  const mx = (pa.x + pb.x) / 2, my = (pa.y + pb.y) / 2;
+  ctx.save();
+  ctx.globalCompositeOperation = activeIsErase ? 'destination-out' : 'source-over';
+  ctx.strokeStyle = pb.color;
+  ctx.lineWidth   = pb.w;
+  ctx.lineCap     = 'round';
+  ctx.lineJoin    = 'round';
+  ctx.beginPath();
+  ctx.moveTo(pa.x, pa.y);
+  ctx.quadraticCurveTo(pa.x, pa.y, mx, my);
+  ctx.lineTo(pb.x, pb.y);
+  ctx.stroke();
+  ctx.restore();
 }
 
 let rafPending = false;
 function scheduleOverlayRender() {
   if (rafPending) return;
   rafPending = true;
-  requestAnimationFrame(() => { rafPending = false; renderOverlayStroke(); });
+  requestAnimationFrame(() => { rafPending = false; renderLiveSegment(); });
 }
 
-// Convert active screen points → canvas-space stroke and commit to history + drawCanvas
+// Commit: stroke is already painted incrementally. Store in history then
+// do a clean redraw so it matches the smoothed committed path exactly.
 function commitStroke(isErase) {
-  octx.clearRect(0, 0, overlay.width, overlay.height);
-  if (activeScreenPoints.length < 2) { activeScreenPoints = []; return; }
-
-  const canvasPoints = activeScreenPoints.map(p => {
-    const c = screenToCanvas(p.sx, p.sy);
-    return { x: c.x, y: c.y, w: p.w / _tz };
-  });
-
+  if (liveStrokeCanvasPoints.length < 2) {
+    liveStrokeCanvasPoints = [];
+    redrawAllStrokes();
+    return;
+  }
   const stroke = {
-    points: canvasPoints,
-    color: activeScreenPoints[0].color,
+    points: liveStrokeCanvasPoints.map(p => ({ x: p.x, y: p.y, w: p.w })),
+    color:  liveStrokeCanvasPoints[0].color,
     isErase,
     offsetX: 0, offsetY: 0,
   };
   strokeHistory.push(stroke);
-  drawStrokeToCtx(ctx, stroke);   // fast incremental add — no full redraw needed
-  activeScreenPoints = [];
+  redrawAllStrokes();   // clean repaint so committed stroke matches history exactly
+  liveStrokeCanvasPoints = [];
 }
 
 // ── Pointer events ───────────────────────────────────────────
-overlay.addEventListener('pointerdown', e => {
+// overlayActivate / overlayDeactivate manage pointer-events so the
+// overlay never blocks clicks when a stroke isn't actively being drawn.
+function overlayActivate() {
+  overlay.style.pointerEvents = 'all';
+  overlay.style.cursor = 'crosshair';
+  overlay.style.zIndex = '999';
+}
+function overlayDeactivate() {
+  overlay.style.pointerEvents = 'none';
+  overlay.style.cursor = '';
+  overlay.style.zIndex = '6';
+}
+
+// Listen for pointerdown on the whole window so we catch the very first tap
+// before setPointerCapture locks events to the overlay.
+window.addEventListener('pointerdown', e => {
   if (state.tool !== 'draw' && state.tool !== 'erase') return;
-  e.preventDefault();
+  if (e.button !== 0 && e.pointerType === 'mouse') return;
+  if (e.target.closest('.sb-frame, .waveform-block, #toolbar')) return;
+  activeIsErase = state.tool === 'erase';
+  overlayActivate();
   overlay.setPointerCapture(e.pointerId);
   state.isDrawing = true;
-  activeScreenPoints = [];
+  liveStrokeCanvasPoints = [];
   const pressure = e.pressure > 0 ? e.pressure : 0.5;
-  const w = state.tool === 'erase' ? state.brushSize * 6 : Math.max(1, state.brushSize * pressure * 2);
-  activeScreenPoints.push({ sx: e.clientX, sy: e.clientY, color: state.strokeColor, w });
-});
+  const w = activeIsErase ? state.brushSize * 6 : Math.max(1, state.brushSize * pressure * 2);
+  const cp = screenToCanvas(e.clientX, e.clientY);
+  liveStrokeCanvasPoints.push({ x: cp.x, y: cp.y, w, color: state.strokeColor });
+}, { capture: true });
 
 overlay.addEventListener('pointermove', e => {
   if (!state.isDrawing) return;
   const events = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
   for (const ev of events) {
     const pressure = ev.pressure > 0 ? ev.pressure : 0.5;
-    const w = state.tool === 'erase' ? state.brushSize * 6 : Math.max(1, state.brushSize * pressure * 2);
-    activeScreenPoints.push({ sx: ev.clientX, sy: ev.clientY, color: state.strokeColor, w });
+    const w = activeIsErase ? state.brushSize * 6 : Math.max(1, state.brushSize * pressure * 2);
+    const cp = screenToCanvas(ev.clientX, ev.clientY);
+    liveStrokeCanvasPoints.push({ x: cp.x, y: cp.y, w, color: state.strokeColor });
   }
   scheduleOverlayRender();
 });
 
-overlay.addEventListener('pointerup', () => {
+function finishStroke() {
   if (!state.isDrawing) return;
   state.isDrawing = false;
   commitStroke(state.tool === 'erase');
-});
-overlay.addEventListener('pointercancel', () => {
-  if (!state.isDrawing) return;
-  state.isDrawing = false;
-  commitStroke(state.tool === 'erase');
-});
+  overlayDeactivate();   // ← release the overlay so frames are clickable again
+}
+
+overlay.addEventListener('pointerup',     finishStroke);
+overlay.addEventListener('pointercancel', finishStroke);
 
 // ── Select-mode stroke picking & dragging ────────────────────
 // In select mode, clicking on the canvas checks if the pointer is near
@@ -1371,115 +1400,162 @@ function addWaveform(opts) {
       <button class="waveform-ctrl active" id="wc-lock-${id}" title="Lock position">⊟</button>
       <button class="waveform-ctrl" id="wc-del-${id}" title="Remove">✕</button>
     </div>
-    <div class="waveform-body">
+    <div class="waveform-body" id="wc-body-${id}">
       <canvas class="waveform-canvas" id="wc-canvas-${id}"></canvas>
       <div class="waveform-playhead" id="wc-head-${id}"></div>
     </div>
     <div class="waveform-resize-l" id="wc-rl-${id}"></div>
     <div class="waveform-resize-r" id="wc-rr-${id}"></div>
+    <div class="waveform-resize-b" id="wc-rb-${id}"></div>
   `;
 
   infiniteCanvas.appendChild(block);
 
-  const header = block.querySelector('.waveform-header');
-  const canvas = block.querySelector('.waveform-canvas');
+  const header   = block.querySelector('.waveform-header');
+  const body     = block.querySelector('.waveform-body');
+  const canvas   = block.querySelector('.waveform-canvas');
   const playhead = block.querySelector('.waveform-playhead');
 
-  // Internal state for this waveform
+  // ── Core model ───────────────────────────────────────────────
+  // pxPerSec is the ONLY source of truth for time↔position mapping.
+  // It is recomputed whenever the block is resized:
+  //   pxPerSec = blockWidth / audioDuration
+  // Playhead left (px) = currentTime * pxPerSec   ← never uses % or ratio
+  // Scrub time (s)     = clickPxFromLeft / pxPerSec
+  // Resizing changes pxPerSec and immediately repositions the playhead.
+
   const gainNode = getAudioContext().createGain();
   gainNode.gain.value = 1;
   gainNode.connect(getAudioContext().destination);
-  const wState = { locked: false, audioBuffer: null, source: null, playing: false, startTime: 0, pauseOffset: 0, samples: samples, volume: 1, muted: false };
 
-  // Draw waveform from samples
+  const wState = {
+    locked: false, audioBuffer: null, source: null,
+    playing: false, startTime: 0, pauseOffset: 0,
+    samples: null, volume: 1, muted: false,
+  };
+
+  // pxPerSec: derived from block width and audio duration.
+  // Recomputed on every resize and after audio loads.
+  function getPxPerSec() {
+    if (!wState.audioBuffer) return 100;
+    return body.offsetWidth / wState.audioBuffer.duration;
+  }
+
+  // ── Rendering ─────────────────────────────────────────────────
   function renderWaveform() {
-    const W = canvas.offsetWidth, H = canvas.offsetHeight;
-    canvas.width = W; canvas.height = H;
+    const W = body.offsetWidth || 600;
+    const H = body.offsetHeight || 64;
+    canvas.width  = W;
+    canvas.height = H;
     const wctx = canvas.getContext('2d');
-    wctx.clearRect(0, 0, W, H);
-    if (!wState.samples || wState.samples.length === 0) {
-      wctx.fillStyle = '#333';
-      wctx.font = '11px DM Mono, monospace';
-      wctx.fillText('Loading…', W / 2 - 25, H / 2 + 4);
-      return;
-    }
-    // Background gradient
+
+    // Background
     const grd = wctx.createLinearGradient(0, 0, 0, H);
     grd.addColorStop(0, '#2a1a10');
     grd.addColorStop(1, '#1a1814');
     wctx.fillStyle = grd;
     wctx.fillRect(0, 0, W, H);
 
-    // Waveform bars
-    const samps = wState.samples;
-    const step = Math.max(1, Math.floor(samps.length / W));
-    const mid = H / 2;
-    wctx.fillStyle = '#e8500a';
-    for (let i = 0; i < W; i++) {
-      let max = 0;
-      for (let j = 0; j < step; j++) {
-        const v = Math.abs(samps[i * step + j] || 0);
-        if (v > max) max = v;
-      }
-      const h = Math.max(1, max * (H - 4));
-      const gbar = wctx.createLinearGradient(0, mid - h / 2, 0, mid + h / 2);
-      gbar.addColorStop(0, '#f0a030');
-      gbar.addColorStop(0.5, '#e8500a');
-      gbar.addColorStop(1, '#f0a030');
-      wctx.fillStyle = gbar;
-      wctx.fillRect(i, mid - h / 2, 1, h);
+    if (!wState.samples || wState.samples.length === 0) {
+      wctx.fillStyle = '#444';
+      wctx.font = '11px DM Mono, monospace';
+      wctx.textAlign = 'center';
+      wctx.fillText('Loading…', W / 2, H / 2 + 4);
+      return;
     }
 
-    // Center line
-    wctx.strokeStyle = '#333';
-    wctx.lineWidth = 1;
+    const samps = wState.samples;
+    const mid   = H / 2;
+    for (let i = 0; i < W; i++) {
+      // Map pixel column → sample index proportionally
+      const si = Math.floor(i / W * samps.length);
+      const amp = samps[si] || 0;
+      const h   = Math.max(1, amp * (H - 4));
+      const gbar = wctx.createLinearGradient(0, mid - h/2, 0, mid + h/2);
+      gbar.addColorStop(0,   '#f0a030');
+      gbar.addColorStop(0.5, '#e8500a');
+      gbar.addColorStop(1,   '#f0a030');
+      wctx.fillStyle = gbar;
+      wctx.fillRect(i, mid - h/2, 1, h);
+    }
+
+    // Centre line
+    wctx.strokeStyle = '#2a2620';
+    wctx.lineWidth   = 1;
     wctx.beginPath();
-    wctx.moveTo(0, mid);
-    wctx.lineTo(W, mid);
+    wctx.moveTo(0, mid); wctx.lineTo(W, mid);
     wctx.stroke();
+
+    // Time ruler — tick every second, label every 5s
+    if (wState.audioBuffer) {
+      const pps = getPxPerSec();
+      const dur = wState.audioBuffer.duration;
+      wctx.fillStyle = '#555';
+      wctx.font = '8px DM Mono, monospace';
+      wctx.textAlign = 'center';
+      for (let s = 0; s <= Math.ceil(dur); s++) {
+        const x = s * pps;
+        if (x > W) break;
+        const tickH = s % 5 === 0 ? 8 : 4;
+        wctx.fillStyle = '#444';
+        wctx.fillRect(x, H - tickH - 1, 1, tickH);
+        if (s % 5 === 0 && x > 12) {
+          wctx.fillStyle = '#666';
+          const m = Math.floor(s/60), sc = s%60;
+          wctx.fillText(`${m}:${sc.toString().padStart(2,'0')}`, x, H - 10);
+        }
+      }
+    }
+
+    // Re-pin playhead after redraw
+    updatePlayheadPos();
   }
 
-  // Load audio samples from buffer
-  function loadSamples(buffer) {
-    wState.audioBuffer = buffer;
-    const data = buffer.getChannelData(0);
-    const targetSamples = 4000;
-    const step = Math.floor(data.length / targetSamples);
-    const s = [];
-    for (let i = 0; i < targetSamples; i++) s.push(Math.abs(data[i * step]));
-    wState.samples = s;
-    renderWaveform();
+  // ── Playhead positioning ──────────────────────────────────────
+  // ONLY function that sets playhead.style.left.
+  // Input: time in seconds → output: px from left edge of body.
+  function updatePlayheadPos() {
+    const t   = currentTime();
+    const px  = t * getPxPerSec();
+    playhead.style.left = px + 'px';
   }
 
-  // Playhead animation
-  let animId = null;
-  function animatePlayhead() {
-    if (!wState.playing || !wState.audioBuffer) return;
+  // ── Playback time ─────────────────────────────────────────────
+  function currentTime() {
+    if (!wState.playing) return wState.pauseOffset;
     const elapsed = getAudioContext().currentTime - wState.startTime + wState.pauseOffset;
-    const progress = Math.min(1, elapsed / wState.audioBuffer.duration);
-    playhead.style.left = (progress * 100) + '%';
-    if (progress < 1) animId = requestAnimationFrame(animatePlayhead);
-    else stopAudio();
+    return Math.min(elapsed, wState.audioBuffer ? wState.audioBuffer.duration : elapsed);
   }
 
+  // ── Animation loop ────────────────────────────────────────────
+  let animId = null;
+  function tick() {
+    updatePlayheadPos();
+    if (wState.audioBuffer && currentTime() < wState.audioBuffer.duration) {
+      animId = requestAnimationFrame(tick);
+    } else if (wState.playing) {
+      stopAudio();
+    }
+  }
+
+  // ── Playback controls ─────────────────────────────────────────
   function playAudio() {
-    if (!wState.audioBuffer) return;
-    if (wState.playing) return;
+    if (!wState.audioBuffer || wState.playing) return;
     getAudioContext().resume();
     wState.source = getAudioContext().createBufferSource();
     wState.source.buffer = wState.audioBuffer;
     wState.source.connect(gainNode);
     wState.source.start(0, wState.pauseOffset);
     wState.startTime = getAudioContext().currentTime;
-    wState.playing = true;
+    wState.playing   = true;
     block.querySelector(`#wc-play-${id}`).textContent = '⏸';
-    animatePlayhead();
+    tick();
   }
 
   function pauseAudio() {
     if (!wState.playing) return;
-    wState.pauseOffset += getAudioContext().currentTime - wState.startTime;
-    wState.source.stop();
+    wState.pauseOffset = currentTime();
+    try { wState.source.stop(); } catch(e) {}
     wState.playing = false;
     block.querySelector(`#wc-play-${id}`).textContent = '▶';
     cancelAnimationFrame(animId);
@@ -1487,124 +1563,135 @@ function addWaveform(opts) {
 
   function stopAudio() {
     if (wState.source && wState.playing) { try { wState.source.stop(); } catch(e) {} }
-    wState.playing = false; wState.pauseOffset = 0;
+    wState.playing     = false;
+    wState.pauseOffset = 0;
     block.querySelector(`#wc-play-${id}`).textContent = '▶';
-    playhead.style.left = '0%';
     cancelAnimationFrame(animId);
+    updatePlayheadPos();
   }
 
-  block.querySelector(`#wc-play-${id}`).addEventListener('click', () => { wState.playing ? pauseAudio() : playAudio(); });
+  block.querySelector(`#wc-play-${id}`).addEventListener('click', () => wState.playing ? pauseAudio() : playAudio());
   block.querySelector(`#wc-stop-${id}`).addEventListener('click', stopAudio);
   block.querySelector(`#wc-del-${id}`).addEventListener('click', () => { stopAudio(); block.remove(); });
 
-  // Volume slider
+  // ── Volume ────────────────────────────────────────────────────
   const volSlider = block.querySelector(`#wc-vol-${id}`);
   const muteBtn   = block.querySelector(`#wc-mute-${id}`);
-
   function applyVolume() {
     gainNode.gain.value = wState.muted ? 0 : wState.volume;
-    muteBtn.textContent = wState.muted ? '🔇' : wState.volume === 0 ? '🔇' : wState.volume < 0.5 ? '🔉' : '🔊';
+    muteBtn.textContent = wState.muted ? '🔇' : wState.volume < 0.5 ? '🔉' : '🔊';
     muteBtn.classList.toggle('muted', wState.muted);
   }
-
   volSlider.addEventListener('input', e => {
     wState.volume = parseFloat(e.target.value);
-    if (wState.muted && wState.volume > 0) { wState.muted = false; }
+    if (wState.muted && wState.volume > 0) wState.muted = false;
     applyVolume();
   });
-  volSlider.addEventListener('mousedown', e => e.stopPropagation()); // prevent drag-to-pan conflict
+  volSlider.addEventListener('mousedown', e => e.stopPropagation());
+  muteBtn.addEventListener('click', () => { wState.muted = !wState.muted; applyVolume(); });
 
-  muteBtn.addEventListener('click', () => {
-    wState.muted = !wState.muted;
-    applyVolume();
-  });
-
-  // Lock toggle
+  // ── Lock ──────────────────────────────────────────────────────
   const lockBtn = block.querySelector(`#wc-lock-${id}`);
   lockBtn.addEventListener('click', () => {
     wState.locked = !wState.locked;
     block.classList.toggle('locked', wState.locked);
-    lockBtn.title = wState.locked ? 'Unlock position' : 'Lock position';
+    lockBtn.title       = wState.locked ? 'Unlock position' : 'Lock position';
     lockBtn.textContent = wState.locked ? '🔒' : '⊟';
     header.style.cursor = wState.locked ? 'default' : 'move';
   });
 
-  // ── Waveform scrubbing (click or drag on waveform body) ──
-  const waveformBody = block.querySelector('.waveform-body');
-  waveformBody.style.cursor = 'col-resize';
-
-  function scrubTo(clientX) {
-    if (!wState.audioBuffer) return;
-    const r = waveformBody.getBoundingClientRect();
-    const ratio = Math.max(0, Math.min(1, (clientX - r.left) / r.width));
-    const targetTime = ratio * wState.audioBuffer.duration;
-    const wasPlaying = wState.playing;
-    if (wasPlaying) {
-      try { wState.source.stop(); } catch(e) {}
-      cancelAnimationFrame(animId);
-      wState.playing = false;
-    }
-    wState.pauseOffset = targetTime;
-    playhead.style.left = (ratio * 100) + '%';
-    if (wasPlaying) playAudio();
-  }
-
-  let isScrubbing = false;
-  waveformBody.addEventListener('mousedown', e => {
+  // ── Scrubbing ─────────────────────────────────────────────────
+  // clientX → canvas-space px from left edge of body → seconds
+  // Uses getBoundingClientRect for left edge (screen space),
+  // then divides by state.zoom to get canvas-space px.
+  body.addEventListener('mousedown', e => {
     if (e.button !== 0) return;
     e.stopPropagation();
-    isScrubbing = true;
-    scrubTo(e.clientX);
-    const onMove = ev => { if (isScrubbing) scrubTo(ev.clientX); };
-    const onUp = () => {
-      isScrubbing = false;
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-    };
+    function seek(ev) {
+      if (!wState.audioBuffer) return;
+      const r      = body.getBoundingClientRect();
+      const screenPx = ev.clientX - r.left;        // px from left in screen space
+      const canvasPx = screenPx / state.zoom;       // px from left in canvas space
+      const t = Math.max(0, Math.min(
+        wState.audioBuffer.duration,
+        canvasPx / getPxPerSec()
+      ));
+      const wasPlaying = wState.playing;
+      if (wasPlaying) { try { wState.source.stop(); } catch(e){} cancelAnimationFrame(animId); wState.playing = false; }
+      wState.pauseOffset = t;
+      updatePlayheadPos();
+      if (wasPlaying) playAudio();
+    }
+    seek(e);
+    const onMove = ev => seek(ev);
+    const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
   });
 
-  // Drag (only when not locked)
-  makeDraggable(block, header, null);
-  // Override: check lock before drag
-  header._dragOverride = true;
-  header.addEventListener('mousedown', e => { if (wState.locked) e.stopImmediatePropagation(); }, true);
-
-  // Resize handles — stretch width
-  function makeWaveformResize(handleEl, side) {
+  // ── Resize handles ────────────────────────────────────────────
+  // Stretching changes the visual scale (pxPerSec) which changes how much
+  // of the song is visible. Playhead is immediately repositioned.
+  function makeResizeHandle(handleEl, side) {
     handleEl.addEventListener('mousedown', e => {
-      if (wState.locked && side === 'l') return; // locked: can still stretch
+      if (wState.locked) return;
       e.stopPropagation(); e.preventDefault();
-      const sx = e.clientX;
-      const sw = parseInt(block.style.width) || block.offsetWidth;
-      const sl = parseInt(block.style.left) || 0;
-      const onMove = ev => {
-        const dx = (ev.clientX - sx) / state.zoom;
+      const startX  = e.clientX;
+      const startW  = parseFloat(block.style.width) || block.offsetWidth;
+      const startL  = parseFloat(block.style.left)  || 0;
+      const onMove  = ev => {
+        const dx = (ev.clientX - startX) / state.zoom;
         if (side === 'r') {
-          block.style.width = Math.max(300, sw + dx) + 'px';
+          block.style.width = Math.max(200, startW + dx) + 'px';
         } else {
-          const newW = Math.max(300, sw - dx);
-          if (!wState.locked) block.style.left = (sl + sw - newW) + 'px';
+          const newW = Math.max(200, startW - dx);
+          block.style.left  = (startL + startW - newW) + 'px';
           block.style.width = newW + 'px';
         }
-        renderWaveform();
+        renderWaveform(); // redraws ruler + repositions playhead
       };
       const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
       window.addEventListener('mousemove', onMove);
       window.addEventListener('mouseup', onUp);
     });
   }
+  makeResizeHandle(block.querySelector(`#wc-rl-${id}`), 'l');
+  makeResizeHandle(block.querySelector(`#wc-rr-${id}`), 'r');
 
-  makeWaveformResize(block.querySelector(`#wc-rl-${id}`), 'l');
-  makeWaveformResize(block.querySelector(`#wc-rr-${id}`), 'r');
-
-  // Initial render after layout
-  requestAnimationFrame(() => {
-    renderWaveform();
-    // Observe resize
-    new ResizeObserver(() => renderWaveform()).observe(block);
+  // Bottom edge — drag to change height
+  const resizeB = block.querySelector(`#wc-rb-${id}`);
+  resizeB.addEventListener('mousedown', e => {
+    e.stopPropagation(); e.preventDefault();
+    const startY = e.clientY;
+    const startH = block.offsetHeight;
+    const onMove = ev => {
+      const dy = (ev.clientY - startY) / state.zoom;
+      block.style.height = Math.max(60, startH + dy) + 'px';
+      renderWaveform();
+    };
+    const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
   });
+
+  // ── Drag ──────────────────────────────────────────────────────
+  makeDraggable(block, header, null);
+  header.addEventListener('mousedown', e => { if (wState.locked) e.stopImmediatePropagation(); }, true);
+
+  // ── Load samples ──────────────────────────────────────────────
+  function loadSamples(buffer) {
+    wState.audioBuffer = buffer;
+    const data = buffer.getChannelData(0);
+    const targetSamples = 4000;
+    const step = Math.max(1, Math.floor(data.length / targetSamples));
+    const s = [];
+    for (let i = 0; i < targetSamples; i++) s.push(Math.abs(data[i * step] || 0));
+    wState.samples = s;
+    requestAnimationFrame(renderWaveform);
+  }
+
+  // Initial render
+  requestAnimationFrame(renderWaveform);
 
   return { block, wState, loadSamples };
 }
