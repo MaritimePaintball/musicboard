@@ -110,7 +110,30 @@
     border-right: 1px solid #333; height: 100%;
   }
   #color-picker-wrap label { color: #666; font-size: 10px; }
-  #stroke-color { width: 28px; height: 28px; border: 2px solid #444; border-radius: 50%; cursor: pointer; padding: 0; background: none; }
+  #stroke-color, #fill-color { width: 28px; height: 28px; border: 2px solid #444; border-radius: 50%; cursor: pointer; padding: 0; background: none; }
+  #fill-toggle {
+    background: none; border: 1px solid #444; border-radius: 3px;
+    color: #666; font-size: 9px; padding: 2px 5px; cursor: pointer;
+    font-family: 'DM Mono', monospace; white-space: nowrap;
+    transition: all 0.15s;
+  }
+  #fill-toggle.active { background: var(--accent2); border-color: var(--accent2); color: #1a1814; }
+
+  /* Shape sub-tool picker */
+  #shape-picker {
+    display: none; align-items: center; gap: 2px;
+    padding: 0 6px; border-right: 1px solid #333; height: 100%;
+  }
+  #shape-picker.visible { display: flex; }
+  .shape-btn {
+    background: none; border: none; cursor: pointer;
+    color: #666; width: 30px; height: 30px;
+    border-radius: 3px; display: flex; align-items: center;
+    justify-content: center; font-size: 14px;
+    transition: all 0.15s;
+  }
+  .shape-btn:hover { background: #2a2620; color: #fff; }
+  .shape-btn.active { background: var(--accent); color: #fff; }
 
   #brush-size-wrap {
     display: flex; align-items: center; gap: 6px; padding: 0 12px;
@@ -133,9 +156,56 @@
   .tb-btn-text.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
   .tb-btn-text.primary:hover { background: #c43d06; }
 
+  /* ── WORKSPACE TABS ── */
+  #tab-bar {
+    position: fixed; top: 52px; left: 0; right: 0; height: 32px;
+    background: #111; border-bottom: 2px solid #2a2620;
+    display: flex; align-items: stretch; z-index: 999;
+    overflow-x: auto; overflow-y: hidden;
+    scrollbar-width: none;
+  }
+  #tab-bar::-webkit-scrollbar { display: none; }
+
+  .ws-tab {
+    display: flex; align-items: center; gap: 6px;
+    padding: 0 14px; min-width: 90px; max-width: 160px;
+    background: #1a1814; border-right: 1px solid #2a2620;
+    cursor: pointer; font-family: 'DM Mono', monospace;
+    font-size: 11px; color: #666; white-space: nowrap;
+    flex-shrink: 0; position: relative;
+    transition: background 0.1s, color 0.1s;
+  }
+  .ws-tab:hover { background: #222; color: #aaa; }
+  .ws-tab.active {
+    background: var(--bg); color: var(--text);
+    border-bottom: 2px solid var(--accent);
+    margin-bottom: -2px;
+  }
+  .ws-tab-name {
+    flex: 1; overflow: hidden; text-overflow: ellipsis;
+    outline: none; background: none; border: none;
+    font-family: 'DM Mono', monospace; font-size: 11px;
+    color: inherit; cursor: pointer; pointer-events: none;
+  }
+  .ws-tab.active .ws-tab-name { pointer-events: all; cursor: text; }
+  .ws-tab-close {
+    background: none; border: none; color: #555;
+    font-size: 13px; cursor: pointer; padding: 0 2px;
+    line-height: 1; border-radius: 2px; flex-shrink: 0;
+  }
+  .ws-tab-close:hover { color: #ff4444; background: rgba(255,68,68,0.1); }
+  #tab-add {
+    background: none; border: none; color: #555;
+    font-size: 18px; padding: 0 12px; cursor: pointer;
+    font-family: 'DM Mono', monospace; flex-shrink: 0;
+    transition: color 0.1s;
+  }
+  #tab-add:hover { color: var(--accent); }
+  #tab-add:disabled { color: #333; cursor: default; }
+
   /* ── CANVAS AREA ── */
   #canvas-container {
-    position: fixed; top: 52px; left: 0; right: 0; bottom: 26px;
+    position: fixed; top: 84px; left: 0; right: 0; bottom: 26px;
     overflow: scroll; cursor: default;
     background-color: var(--canvas-bg);
     background-image:
@@ -179,7 +249,7 @@
   /* Screen-resolution overlay for low-latency live strokes */
   #stroke-overlay {
     position: fixed;
-    top: 52px; left: 0;   /* sits over canvas-container, below toolbar */
+    top: 84px; left: 0;   /* sits over canvas-container, below toolbar+tabbar */
     pointer-events: none;
     z-index: 6;
   }
@@ -515,12 +585,23 @@
     <button class="tb-btn active" id="tool-select" title="Select / Move (V)"><svg width="14" height="16" viewBox="0 0 14 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M2 1 L2 13 L5.5 9.5 L8.5 15 L10.5 14 L7.5 8 L12 8 Z" fill="currentColor"/></svg></button>
     <button class="tb-btn" id="tool-draw" title="Draw (D)">&#9998;</button>
     <button class="tb-btn" id="tool-erase" title="Erase (E)">&#9723;</button>
+    <button class="tb-btn" id="tool-shape" title="Shapes (S)">&#9645;</button>
     <button class="tb-btn" id="tool-text" title="Add Text Label (T)">T</button>
+  </div>
+
+  <!-- Shape sub-picker (shown when shape tool active) -->
+  <div id="shape-picker">
+    <button class="shape-btn active" id="shape-rect"   title="Rectangle">&#9645;</button>
+    <button class="shape-btn"        id="shape-circle" title="Circle">&#9711;</button>
+    <button class="shape-btn"        id="shape-arrow"  title="Arrow">&#10132;</button>
   </div>
 
   <div id="color-picker-wrap">
     <label>INK</label>
     <input type="color" id="stroke-color" value="#1a1814">
+    <label>FILL</label>
+    <input type="color" id="fill-color" value="#ffffff">
+    <button id="fill-toggle" title="Toggle fill">FILL</button>
   </div>
 
   <div id="brush-size-wrap">
@@ -541,6 +622,12 @@
     <button class="tb-btn-text" id="btn-load">&#128194; Load</button>
     <button class="tb-btn-text primary" id="btn-save">&#128190; Save</button>
   </div>
+</div>
+
+<!-- WORKSPACE TABS -->
+<div id="tab-bar">
+  <!-- tabs injected by JS -->
+  <button id="tab-add" title="New workspace">+</button>
 </div>
 
 <!-- CANVAS -->
@@ -616,7 +703,7 @@ let _tx = 0, _ty = 0, _tz = 1;
 // Canvas is CANVAS_SIZE px; viewport excludes toolbar + statusbar.
 function getMinZoom() {
   const vw = window.innerWidth;
-  const vh = window.innerHeight - 52 - 26;
+  const vh = window.innerHeight - 84 - 26; // toolbar+tabbar + statusbar
   // Canvas must always be at least as large as the viewport so you
   // can't pan into blank space. Also enforce a 25% floor for usability.
   const fitZoom = Math.max(vw / CANVAS_SIZE, vh / CANVAS_SIZE);
@@ -663,8 +750,11 @@ const toolBtns = {
   select: document.getElementById('tool-select'),
   draw:   document.getElementById('tool-draw'),
   erase:  document.getElementById('tool-erase'),
+  shape:  document.getElementById('tool-shape'),
   text:   document.getElementById('tool-text'),
 };
+
+let activeShape = 'rect'; // rect | circle | arrow
 
 function setTool(t) {
   state.tool = t;
@@ -673,6 +763,8 @@ function setTool(t) {
   document.getElementById('status-tool').textContent = t.toUpperCase();
   const dc = document.getElementById('draw-canvas');
   dc.classList.toggle('drawing-mode', t === 'draw' || t === 'erase');
+  // Show/hide shape sub-picker
+  document.getElementById('shape-picker').classList.toggle('visible', t === 'shape');
   // Overlay is activated per-stroke via overlayActivate/Deactivate.
   // When switching tools, always make sure it's deactivated.
   if (typeof overlayDeactivate === 'function') overlayDeactivate();
@@ -689,11 +781,30 @@ Object.entries(toolBtns).forEach(([t, btn]) => btn.addEventListener('click', () 
 document.getElementById('stroke-color').addEventListener('input', e => { state.strokeColor = e.target.value; });
 document.getElementById('brush-size').addEventListener('input', e => { state.brushSize = +e.target.value; });
 
+// Fill colour and toggle
+state.fillColor   = '#ffffff';
+state.fillEnabled = false;
+document.getElementById('fill-color').addEventListener('input', e => { state.fillColor = e.target.value; });
+document.getElementById('fill-toggle').addEventListener('click', () => {
+  state.fillEnabled = !state.fillEnabled;
+  document.getElementById('fill-toggle').classList.toggle('active', state.fillEnabled);
+});
+
+// Shape sub-picker
+['rect','circle','arrow'].forEach(s => {
+  document.getElementById('shape-' + s).addEventListener('click', () => {
+    activeShape = s;
+    document.querySelectorAll('.shape-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('shape-' + s).classList.add('active');
+  });
+});
+
 document.addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
   if (e.key === 'v' || e.key === 'V') setTool('select');
   if (e.key === 'd' || e.key === 'D') setTool('draw');
   if (e.key === 'e' || e.key === 'E') setTool('erase');
+  if (e.key === 's' || e.key === 'S') setTool('shape');
   if (e.key === 't' || e.key === 'T') setTool('text');
   if (e.key === 'f' || e.key === 'F') addFrame();
   if (e.key === 'a' || e.key === 'A') document.getElementById('audio-input').click();
@@ -712,6 +823,7 @@ container.addEventListener('scroll', () => {
 
 container.addEventListener('mousedown', e => {
   if (e.button === 0 && state.tool === 'text') {
+    if (e.target.closest('#tab-bar')) return;
     const pos = toCanvas(e.clientX, e.clientY);
     addLabel(pos.x, pos.y);
     setTool('select');
@@ -769,14 +881,14 @@ container.addEventListener('contextmenu', e => e.preventDefault());
 // all canvas-space coordinates instead of getBoundingClientRect().
 // ═══════════════════════════════════════════════════════════
 
-const TOOLBAR_H = 52; // keep in sync with #toolbar height in CSS
+const TOOLBAR_H = 84; // toolbar (52px) + tab bar (32px)
 
 const overlay = document.getElementById('stroke-overlay');
 const octx    = overlay.getContext('2d');
 
 function resizeOverlay() {
   overlay.width  = window.innerWidth;
-  overlay.height = window.innerHeight - 52 - 26; // container excludes toolbar + statusbar
+  overlay.height = window.innerHeight - 84 - 26;
 }
 resizeOverlay();
 window.addEventListener('resize', () => {
@@ -826,23 +938,72 @@ function redrawAllStrokes() {
 }
 
 function drawStrokeToCtx(targetCtx, s) {
-  if (s.points.length < 2) return;
   targetCtx.save();
-  targetCtx.globalCompositeOperation = s.isErase ? 'destination-out' : 'source-over';
-  targetCtx.lineCap  = 'round';
-  targetCtx.lineJoin = 'round';
-  targetCtx.strokeStyle = s.color;
+  targetCtx.globalCompositeOperation = 'source-over';
   const ox = s.offsetX || 0, oy = s.offsetY || 0;
-  targetCtx.beginPath();
-  targetCtx.moveTo(s.points[0].x + ox, s.points[0].y + oy);
-  for (let i = 1; i < s.points.length; i++) {
-    const pa = s.points[i-1], pb = s.points[i];
-    const mx = (pa.x + pb.x) / 2 + ox, my = (pa.y + pb.y) / 2 + oy;
-    targetCtx.lineWidth = pb.w;
-    targetCtx.quadraticCurveTo(pa.x + ox, pa.y + oy, mx, my);
+
+  if (s.type === 'rect' || s.type === 'circle' || s.type === 'arrow') {
+    // ── Shape rendering ──
+    const x1 = s.x1 + ox, y1 = s.y1 + oy;
+    const x2 = s.x2 + ox, y2 = s.y2 + oy;
+    targetCtx.strokeStyle = s.color;
+    targetCtx.lineWidth   = s.strokeWidth || 2;
+    targetCtx.lineCap     = 'round';
+    targetCtx.lineJoin    = 'round';
+
+    if (s.type === 'rect') {
+      if (s.fillEnabled) {
+        targetCtx.fillStyle = s.fillColor || '#ffffff';
+        targetCtx.fillRect(x1, y1, x2 - x1, y2 - y1);
+      }
+      targetCtx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+
+    } else if (s.type === 'circle') {
+      const cx = (x1 + x2) / 2, cy = (y1 + y2) / 2;
+      const rx = Math.abs(x2 - x1) / 2, ry = Math.abs(y2 - y1) / 2;
+      targetCtx.beginPath();
+      targetCtx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+      if (s.fillEnabled) { targetCtx.fillStyle = s.fillColor || '#ffffff'; targetCtx.fill(); }
+      targetCtx.stroke();
+
+    } else if (s.type === 'arrow') {
+      const dx = x2 - x1, dy = y2 - y1;
+      const angle = Math.atan2(dy, dx);
+      const len   = Math.sqrt(dx*dx + dy*dy);
+      const headLen = Math.min(30, len * 0.35);
+      // Shaft
+      targetCtx.beginPath();
+      targetCtx.moveTo(x1, y1);
+      targetCtx.lineTo(x2, y2);
+      targetCtx.stroke();
+      // Arrowhead
+      targetCtx.beginPath();
+      targetCtx.moveTo(x2, y2);
+      targetCtx.lineTo(x2 - headLen * Math.cos(angle - Math.PI/6), y2 - headLen * Math.sin(angle - Math.PI/6));
+      targetCtx.moveTo(x2, y2);
+      targetCtx.lineTo(x2 - headLen * Math.cos(angle + Math.PI/6), y2 - headLen * Math.sin(angle + Math.PI/6));
+      targetCtx.stroke();
+    }
+
+  } else {
+    // ── Freehand stroke rendering ──
+    if (s.points.length < 2) { targetCtx.restore(); return; }
+    targetCtx.globalCompositeOperation = s.isErase ? 'destination-out' : 'source-over';
+    targetCtx.lineCap  = 'round';
+    targetCtx.lineJoin = 'round';
+    targetCtx.strokeStyle = s.color;
+    targetCtx.beginPath();
+    targetCtx.moveTo(s.points[0].x + ox, s.points[0].y + oy);
+    for (let i = 1; i < s.points.length; i++) {
+      const pa = s.points[i-1], pb = s.points[i];
+      const mx = (pa.x + pb.x) / 2 + ox, my = (pa.y + pb.y) / 2 + oy;
+      targetCtx.lineWidth = pb.w;
+      targetCtx.quadraticCurveTo(pa.x + ox, pa.y + oy, mx, my);
+    }
+    targetCtx.lineTo(s.points[s.points.length-1].x + ox, s.points[s.points.length-1].y + oy);
+    targetCtx.stroke();
   }
-  targetCtx.lineTo(s.points[s.points.length-1].x + ox, s.points[s.points.length-1].y + oy);
-  targetCtx.stroke();
+
   targetCtx.restore();
 }
 
@@ -925,12 +1086,86 @@ function overlayDeactivate() {
   overlay.style.zIndex = '6';
 }
 
+// ── Shape drawing state ──────────────────────────────────────
+let shapeStart = null; // { sx, sy } screen coords where drag started
+
+function renderShapePreview(sx1, sy1, sx2, sy2) {
+  octx.clearRect(0, 0, overlay.width, overlay.height);
+  const oy = TOOLBAR_H;
+  octx.save();
+  octx.strokeStyle = state.strokeColor;
+  octx.lineWidth   = state.brushSize * 2;
+  octx.lineCap     = 'round';
+  octx.lineJoin    = 'round';
+  octx.setLineDash([6, 4]);
+  const x1 = sx1, y1 = sy1 - oy, x2 = sx2, y2 = sy2 - oy;
+
+  if (activeShape === 'rect') {
+    if (state.fillEnabled) {
+      octx.fillStyle = state.fillColor + '88'; // semi-transparent preview
+      octx.fillRect(x1, y1, x2-x1, y2-y1);
+    }
+    octx.strokeRect(x1, y1, x2-x1, y2-y1);
+
+  } else if (activeShape === 'circle') {
+    const cx = (x1+x2)/2, cy = (y1+y2)/2;
+    const rx = Math.abs(x2-x1)/2, ry = Math.abs(y2-y1)/2;
+    octx.beginPath();
+    octx.ellipse(cx, cy, Math.max(1,rx), Math.max(1,ry), 0, 0, Math.PI*2);
+    if (state.fillEnabled) { octx.fillStyle = state.fillColor + '88'; octx.fill(); }
+    octx.stroke();
+
+  } else if (activeShape === 'arrow') {
+    const dx = x2-x1, dy = y2-y1;
+    const angle = Math.atan2(dy, dx);
+    const len = Math.sqrt(dx*dx+dy*dy);
+    const headLen = Math.min(30, len*0.35);
+    octx.beginPath();
+    octx.moveTo(x1, y1); octx.lineTo(x2, y2); octx.stroke();
+    octx.setLineDash([]);
+    octx.beginPath();
+    octx.moveTo(x2, y2);
+    octx.lineTo(x2 - headLen*Math.cos(angle-Math.PI/6), y2 - headLen*Math.sin(angle-Math.PI/6));
+    octx.moveTo(x2, y2);
+    octx.lineTo(x2 - headLen*Math.cos(angle+Math.PI/6), y2 - headLen*Math.sin(angle+Math.PI/6));
+    octx.stroke();
+  }
+  octx.restore();
+}
+
+function commitShape(sx1, sy1, sx2, sy2) {
+  octx.clearRect(0, 0, overlay.width, overlay.height);
+  const c1 = screenToCanvas(sx1, sy1);
+  const c2 = screenToCanvas(sx2, sy2);
+  const shape = {
+    type: activeShape,
+    x1: c1.x, y1: c1.y, x2: c2.x, y2: c2.y,
+    color: state.strokeColor,
+    fillColor: state.fillColor,
+    fillEnabled: state.fillEnabled,
+    strokeWidth: Math.max(1, state.brushSize * 2 / state.zoom),
+    offsetX: 0, offsetY: 0,
+    points: [{ x: c1.x, y: c1.y, w: 1 }, { x: c2.x, y: c2.y, w: 1 }], // for hit-test bbox
+  };
+  strokeHistory.push(shape);
+  drawStrokeToCtx(ctx, shape);
+}
+
 // ── Pointer events ───────────────────────────────────────────
 window.addEventListener('pointerdown', e => {
-  if (state.tool !== 'draw' && state.tool !== 'erase') return;
-  if (e.button === 1) return; // never intercept middle mouse — that's for panning
+  if (state.tool !== 'draw' && state.tool !== 'erase' && state.tool !== 'shape') return;
+  if (e.button === 1) return;
   if (e.button !== 0 && e.pointerType === 'mouse') return;
-  if (e.target.closest('.sb-frame, .waveform-block, #toolbar')) return;
+  if (e.target.closest('.sb-frame, .waveform-block, #toolbar, #tab-bar')) return;
+
+  if (state.tool === 'shape') {
+    overlayActivate();
+    overlay.setPointerCapture(e.pointerId);
+    state.isDrawing = true;
+    shapeStart = { sx: e.clientX, sy: e.clientY };
+    return;
+  }
+
   activeIsErase = state.tool === 'erase';
   overlayActivate();
   overlay.setPointerCapture(e.pointerId);
@@ -943,6 +1178,10 @@ window.addEventListener('pointerdown', e => {
 
 overlay.addEventListener('pointermove', e => {
   if (!state.isDrawing) return;
+  if (state.tool === 'shape' && shapeStart) {
+    renderShapePreview(shapeStart.sx, shapeStart.sy, e.clientX, e.clientY);
+    return;
+  }
   const events = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
   for (const ev of events) {
     const pressure = ev.pressure > 0 ? ev.pressure : 0.5;
@@ -952,9 +1191,15 @@ overlay.addEventListener('pointermove', e => {
   scheduleOverlayRender();
 });
 
-function finishStroke() {
+function finishStroke(e) {
   if (!state.isDrawing) return;
   state.isDrawing = false;
+  if (state.tool === 'shape' && shapeStart) {
+    commitShape(shapeStart.sx, shapeStart.sy, e.clientX, e.clientY);
+    shapeStart = null;
+    overlayDeactivate();
+    return;
+  }
   commitStroke(activeIsErase);
   overlayDeactivate();
 }
@@ -971,6 +1216,13 @@ let strokeDragStart = null;   // { mx, my, ox, oy } — mouse and offset at drag
 
 // Bounding box of a stroke (canvas space, ignoring offset for hit-test speed)
 function strokeBounds(s) {
+  if (s.type === 'rect' || s.type === 'circle' || s.type === 'arrow') {
+    const pad = 20;
+    return {
+      minX: Math.min(s.x1, s.x2) - pad, minY: Math.min(s.y1, s.y2) - pad,
+      maxX: Math.max(s.x1, s.x2) + pad, maxY: Math.max(s.y1, s.y2) + pad,
+    };
+  }
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   for (const p of s.points) {
     if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
@@ -980,12 +1232,22 @@ function strokeBounds(s) {
   return { minX: minX - pad, minY: minY - pad, maxX: maxX + pad, maxY: maxY + pad };
 }
 
-// Hit-test: is canvas point (cx,cy) within ~12px of any point in the stroke?
+// Hit-test: is canvas point (cx,cy) within the shape or stroke?
 function strokeHitTest(s, cx, cy) {
   const ox = s.offsetX || 0, oy = s.offsetY || 0;
+
+  if (s.type === 'rect' || s.type === 'circle' || s.type === 'arrow') {
+    // Shape hit-test: check bounding box with small padding
+    const pad = Math.max(8, (s.strokeWidth || 2) * 2) / _tz;
+    const x1 = Math.min(s.x1, s.x2) + ox - pad;
+    const y1 = Math.min(s.y1, s.y2) + oy - pad;
+    const x2 = Math.max(s.x1, s.x2) + ox + pad;
+    const y2 = Math.max(s.y1, s.y2) + oy + pad;
+    return cx >= x1 && cx <= x2 && cy >= y1 && cy <= y2;
+  }
+
   const thresh = Math.max(12, (s.points[0]?.w || 4)) / _tz;
   const b = strokeBounds(s);
-  // Quick bbox reject
   if (cx < b.minX + ox - thresh || cx > b.maxX + ox + thresh ||
       cy < b.minY + oy - thresh || cy > b.maxY + oy + thresh) return false;
   for (const p of s.points) {
@@ -1763,7 +2025,7 @@ function addWaveform(opts) {
 document.getElementById('btn-add-audio').addEventListener('click', () => document.getElementById('audio-input').click());
 document.getElementById('audio-input').addEventListener('change', e => {
   const file = e.target.files[0]; if (!file) return;
-  const pos = toCanvas(window.innerWidth / 2, (window.innerHeight - 52) * 0.6);
+  const pos = toCanvas(window.innerWidth / 2, (window.innerHeight - 84) * 0.6);
   const { block, wState, loadSamples } = addWaveform({ x: pos.x - 300, y: pos.y, filename: file.name });
   document.getElementById('status-audio-info').innerHTML = `AUDIO: <span>${file.name}</span>`;
 
@@ -1886,7 +2148,7 @@ function loadProject(proj) {
   ctx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
   state.frameCount = 0; state.labelCount = 0; state.imageCount = 0;
 
-  const _cw = window.innerWidth, _ch = window.innerHeight - 52 - 26;
+  const _cw = window.innerWidth, _ch = window.innerHeight - 84 - 26;
   state.zoom = proj.pan?.zoom ?? Math.max(getMinZoom(), 1);
   state.zoom = Math.max(getMinZoom(), state.zoom);
   applyTransform();
@@ -2003,12 +2265,12 @@ function openTutorial() {
     const tx = parseFloat(tutorialFrame.style.left) || 100;
     const ty = parseFloat(tutorialFrame.style.top)  || 100;
     container.scrollLeft = tx * state.zoom - window.innerWidth  / 2 + 200;
-    container.scrollTop  = ty * state.zoom - (window.innerHeight - 52) / 2 + 150;
+    container.scrollTop  = ty * state.zoom - (window.innerHeight - 84) / 2 + 150;
     return;
   }
   // Create it near current view centre
   const cx = (container.scrollLeft + window.innerWidth  / 2) / state.zoom - 220;
-  const cy = (container.scrollTop  + (window.innerHeight - 52) / 2) / state.zoom - 300;
+  const cy = (container.scrollTop  + (window.innerHeight - 84) / 2) / state.zoom - 300;
   tutorialFrame = addFrame({
     x: cx, y: cy, w: 440, h: 600,
     title: 'How To Use MusicBoard',
@@ -2027,10 +2289,248 @@ document.getElementById('btn-tutorial').addEventListener('click', openTutorial);
 
 document.getElementById('btn-recenter').addEventListener('click', () => {
   const vw = window.innerWidth;
-  const vh = window.innerHeight - 52 - 26;
+  const vh = window.innerHeight - 84 - 26;
   container.scrollLeft = CANVAS_SIZE * state.zoom / 2 - vw / 2;
   container.scrollTop  = CANVAS_SIZE * state.zoom / 2 - vh / 2;
 });
+
+// ═══════════════════════════════════════════════════════════
+// WORKSPACE / TAB SYSTEM
+// ═══════════════════════════════════════════════════════════
+const MAX_WORKSPACES = 8;
+
+// Snapshot of a workspace — everything needed to restore it
+function captureWorkspace(ws) {
+  ws.scrollLeft   = container.scrollLeft;
+  ws.scrollTop    = container.scrollTop;
+  ws.zoom         = state.zoom;
+  ws.strokeHistory = strokeHistory.map(s => ({ ...s, points: [...s.points] }));
+  ws.drawingData  = drawCanvas.toDataURL();
+  ws.frames = [];
+  document.querySelectorAll('.sb-frame').forEach(frame => {
+    const titleEl = frame.querySelector('.sb-frame-title');
+    const activeTab = frame.querySelector('.sb-tab.active')?.dataset.tab ?? 'draw';
+    const textContent = frame.querySelector('.sb-text-area')?.value ?? '';
+    const imgEl  = frame.querySelector('[data-pane="image"] img');
+    const vidEl  = frame.querySelector('[data-pane="image"] video');
+    const ifrEl  = frame.querySelector('[data-pane="image"] iframe');
+    const drawC  = frame.querySelector('.sb-draw-canvas');
+    let imgSrc = null;
+    if (imgEl) imgSrc = imgEl.src;
+    else if (vidEl) imgSrc = vidEl.src;
+    else if (ifrEl) { const m = ifrEl.src.match(/embed\/([a-zA-Z0-9_-]{11})/); if (m) imgSrc = 'yt:' + m[1]; }
+    ws.frames.push({
+      x: parseFloat(frame.style.left), y: parseFloat(frame.style.top),
+      w: frame.offsetWidth, h: frame.offsetHeight,
+      title: titleEl ? titleEl.value : '',
+      activeTab, textContent, imgSrc,
+      drawData: drawC ? drawC.toDataURL() : null,
+    });
+  });
+  ws.labels = [];
+  document.querySelectorAll('.canvas-label').forEach(lbl => {
+    ws.labels.push({ x: parseFloat(lbl.style.left), y: parseFloat(lbl.style.top), text: lbl.querySelector('input').value });
+  });
+  ws.images = [];
+  document.querySelectorAll('.canvas-image').forEach(ci => {
+    const img = ci.querySelector('img');
+    ws.images.push({ x: parseFloat(ci.style.left), y: parseFloat(ci.style.top), src: img.src, w: img.style.width, h: img.style.height });
+  });
+  // Capture waveform (position + size only — audio buffer can't be serialised)
+  ws.waveforms = [];
+  document.querySelectorAll('.waveform-block').forEach(wb => {
+    ws.waveforms.push({ x: parseFloat(wb.style.left), y: parseFloat(wb.style.top), w: parseFloat(wb.style.width) || wb.offsetWidth, h: wb.offsetHeight, filename: wb.querySelector('.waveform-title')?.textContent ?? '' });
+  });
+}
+
+function restoreWorkspace(ws) {
+  // Clear current canvas
+  document.querySelectorAll('.sb-frame, .canvas-label, .canvas-image, .waveform-block').forEach(el => el.remove());
+  ctx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+  octx.clearRect(0, 0, overlay.width, overlay.height);
+  strokeHistory = []; selectedStroke = null;
+  state.frameCount = 0; state.labelCount = 0; state.imageCount = 0;
+
+  // Restore zoom + scroll
+  state.zoom = Math.max(getMinZoom(), ws.zoom ?? 1);
+  applyTransform();
+  requestAnimationFrame(() => {
+    container.scrollLeft = ws.scrollLeft ?? 0;
+    container.scrollTop  = ws.scrollTop  ?? 0;
+  });
+
+  // Restore strokes
+  if (ws.strokeHistory && ws.strokeHistory.length > 0) {
+    strokeHistory = ws.strokeHistory;
+    redrawAllStrokes();
+  } else if (ws.drawingData && ws.drawingData !== 'data:,') {
+    const img = new Image();
+    img.onload = () => ctx.drawImage(img, 0, 0);
+    img.src = ws.drawingData;
+  }
+
+  // Restore frames
+  (ws.frames || []).forEach(f => {
+    const frame = addFrame(f);
+    if (f.drawData) {
+      const dc = frame.querySelector('.sb-draw-canvas');
+      const img = new Image();
+      img.onload = () => { resizeSbCanvas(frame); dc.getContext('2d').drawImage(img, 0, 0, dc.width, dc.height); };
+      img.src = f.drawData;
+    }
+  });
+
+  (ws.labels  || []).forEach(l => addLabel(l.x, l.y, l.text));
+  (ws.images  || []).forEach(im => {
+    const el = addCanvasImage(im.src, im.x, im.y);
+    const img = el.querySelector('img');
+    if (im.w) { img.style.maxWidth = 'none'; img.style.width = im.w; }
+    if (im.h) img.style.height = im.h;
+  });
+  // Waveforms lose their audio on switch (browser limitation) — restore visual only
+  (ws.waveforms || []).forEach(wv => addWaveform({ x: wv.x, y: wv.y, w: wv.w, filename: wv.filename }).block.style.height = wv.h + 'px');
+}
+
+// Initial workspace data
+function emptyWorkspace(name) {
+  return { name, frames: [], labels: [], images: [], waveforms: [], strokeHistory: [], drawingData: null, scrollLeft: 0, scrollTop: 0, zoom: 1 };
+}
+
+let workspaces = [ emptyWorkspace('Workspace 1') ];
+let activeWsIdx = 0;
+
+// ── Tab bar rendering ──────────────────────────────────────
+function renderTabs() {
+  const bar = document.getElementById('tab-bar');
+  // Remove existing tabs (keep the + button)
+  bar.querySelectorAll('.ws-tab').forEach(t => t.remove());
+  const addBtn = document.getElementById('tab-add');
+  addBtn.disabled = workspaces.length >= MAX_WORKSPACES;
+
+  workspaces.forEach((ws, i) => {
+    const tab = document.createElement('div');
+    tab.className = 'ws-tab' + (i === activeWsIdx ? ' active' : '');
+    tab.dataset.idx = i;
+
+    const nameEl = document.createElement('input');
+    nameEl.className = 'ws-tab-name';
+    nameEl.value = ws.name;
+    nameEl.title = 'Double-click to rename';
+    nameEl.addEventListener('dblclick', e => { e.stopPropagation(); nameEl.focus(); nameEl.select(); });
+    nameEl.addEventListener('blur', () => { workspaces[i].name = nameEl.value || `Workspace ${i+1}`; });
+    nameEl.addEventListener('keydown', e => { if (e.key === 'Enter') nameEl.blur(); e.stopPropagation(); });
+    nameEl.addEventListener('mousedown', e => { if (i !== activeWsIdx) e.preventDefault(); });
+
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'ws-tab-close';
+    closeBtn.textContent = '✕';
+    closeBtn.title = 'Close workspace';
+    closeBtn.addEventListener('click', e => { e.stopPropagation(); removeWorkspace(i); });
+
+    if (workspaces.length > 1) tab.appendChild(closeBtn);
+    tab.appendChild(nameEl);
+
+    tab.addEventListener('mousedown', e => {
+      if (e.target === closeBtn) return;
+      if (i !== activeWsIdx) switchWorkspace(i);
+    });
+
+    bar.insertBefore(tab, addBtn);
+  });
+}
+
+// ── Switch workspace ───────────────────────────────────────
+function switchWorkspace(idx) {
+  if (idx === activeWsIdx) return;
+  captureWorkspace(workspaces[activeWsIdx]);
+  activeWsIdx = idx;
+  restoreWorkspace(workspaces[activeWsIdx]);
+  renderTabs();
+}
+
+// ── Add workspace ──────────────────────────────────────────
+function addWorkspace() {
+  if (workspaces.length >= MAX_WORKSPACES) return;
+  captureWorkspace(workspaces[activeWsIdx]);
+  const n = workspaces.length + 1;
+  workspaces.push(emptyWorkspace(`Workspace ${n}`));
+  activeWsIdx = workspaces.length - 1;
+  restoreWorkspace(workspaces[activeWsIdx]);
+  // Centre new workspace
+  const vw = window.innerWidth, vh = window.innerHeight - 84 - 26;
+  state.zoom = Math.max(getMinZoom(), 1);
+  applyTransform();
+  container.scrollLeft = CANVAS_SIZE * state.zoom / 2 - vw / 2;
+  container.scrollTop  = CANVAS_SIZE * state.zoom / 2 - vh / 2;
+  renderTabs();
+}
+
+// ── Remove workspace ───────────────────────────────────────
+function removeWorkspace(idx) {
+  if (workspaces.length <= 1) return; // always keep at least one
+  workspaces.splice(idx, 1);
+  if (activeWsIdx >= workspaces.length) activeWsIdx = workspaces.length - 1;
+  restoreWorkspace(workspaces[activeWsIdx]);
+  renderTabs();
+}
+
+document.getElementById('tab-add').addEventListener('click', addWorkspace);
+
+// ── Patch saveProject to include all workspaces ────────────
+const _origSaveProject = saveProject;
+function saveProject() {
+  // Snapshot active workspace first
+  captureWorkspace(workspaces[activeWsIdx]);
+  const proj = {
+    version: 2,
+    activeWs: activeWsIdx,
+    workspaces: workspaces.map(ws => ({
+      name: ws.name,
+      zoom: ws.zoom,
+      scrollLeft: ws.scrollLeft,
+      scrollTop: ws.scrollTop,
+      strokeHistory: ws.strokeHistory,
+      frames: ws.frames,
+      labels: ws.labels,
+      images: ws.images,
+      waveforms: ws.waveforms,
+    })),
+  };
+  const blob = new Blob([JSON.stringify(proj, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'musicboard-project.json';
+  a.click();
+}
+
+// ── Patch loadProject to restore all workspaces ────────────
+const _origLoadProject = loadProject;
+function loadProject(proj) {
+  if (proj.version === 2 && proj.workspaces) {
+    // Multi-workspace save
+    workspaces = proj.workspaces.map(ws => ({
+      name: ws.name || 'Workspace',
+      zoom: ws.zoom ?? 1,
+      scrollLeft: ws.scrollLeft ?? 0,
+      scrollTop: ws.scrollTop ?? 0,
+      strokeHistory: ws.strokeHistory || [],
+      frames: ws.frames || [],
+      labels: ws.labels || [],
+      images: ws.images || [],
+      waveforms: ws.waveforms || [],
+      drawingData: null,
+    }));
+    activeWsIdx = Math.min(proj.activeWs ?? 0, workspaces.length - 1);
+    restoreWorkspace(workspaces[activeWsIdx]);
+    renderTabs();
+  } else {
+    // Legacy single-workspace save
+    workspaces = [ emptyWorkspace('Workspace 1') ];
+    activeWsIdx = 0;
+    _origLoadProject(proj);
+    renderTabs();
+  }
+}
 
 // ═══════════════════════════════════════════════════════════
 // WELCOME: add one sample frame to get started
@@ -2043,7 +2543,7 @@ window.addEventListener('load', () => {
 
   // Available viewport height excludes toolbar (52px) and status bar (26px)
   const vw = window.innerWidth;
-  const vh = window.innerHeight - 52 - 26;
+  const vh = window.innerHeight - 84 - 26;
 
   // Ensure starting zoom respects viewport minimum
   state.zoom = Math.max(getMinZoom(), state.zoom);
@@ -2065,6 +2565,10 @@ window.addEventListener('load', () => {
   lbl.querySelector('input').style.width = '460px';
   lbl.querySelector('input').style.color = '#888';
   lbl.querySelector('input').style.fontSize = '12px';
+
+  // Capture initial state into workspace 1 and render tabs
+  captureWorkspace(workspaces[0]);
+  renderTabs();
 });
 
 // ═══════════════════════════════════════════════════════════
