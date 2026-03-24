@@ -135,26 +135,36 @@
 
   /* ── CANVAS AREA ── */
   #canvas-container {
-    position: fixed; top: 52px; left: 0; right: 0; bottom: 0;
-    overflow: hidden; cursor: default;
-  }
-
-  #infinite-canvas {
-    position: absolute; top: 0; left: 0;
-    transform-origin: 0 0;
-    width: 8000px; height: 8000px;
-  }
-
-  /* Grid background */
-  #canvas-container::before {
-    content: '';
-    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    position: fixed; top: 52px; left: 0; right: 0; bottom: 26px;
+    overflow: scroll; cursor: default;
+    background-color: var(--canvas-bg);
     background-image:
       linear-gradient(var(--border) 1px, transparent 1px),
       linear-gradient(90deg, var(--border) 1px, transparent 1px);
     background-size: 40px 40px;
-    opacity: 0.5;
-    pointer-events: none; z-index: 0;
+    background-attachment: local;
+  }
+
+  /* Scrollbar styling */
+  #canvas-container::-webkit-scrollbar { width: 12px; height: 12px; }
+  #canvas-container::-webkit-scrollbar-track { background: var(--panel); }
+  #canvas-container::-webkit-scrollbar-thumb {
+    background: #3a3630; border-radius: 6px;
+    border: 2px solid var(--panel);
+  }
+  #canvas-container::-webkit-scrollbar-thumb:hover { background: #555; }
+  #canvas-container::-webkit-scrollbar-corner { background: var(--panel); }
+
+  /* Scroll wrapper sets the scrollable area size based on zoom */
+  #scroll-wrapper {
+    position: relative;
+    width: 8000px; height: 8000px;
+    transform-origin: 0 0;
+  }
+
+  #infinite-canvas {
+    position: absolute; top: 0; left: 0;
+    width: 8000px; height: 8000px;
   }
 
   /* Drawing canvas sits on top of everything in infinite space */
@@ -168,11 +178,10 @@
 
   /* Screen-resolution overlay for low-latency live strokes */
   #stroke-overlay {
-    position: fixed;
+    position: absolute;
     top: 0; left: 0;
     pointer-events: none;
-    z-index: 6;             /* just above draw-canvas (z:5), below frames (z:40) */
-    will-change: transform; /* GPU compositing hint — reduces paint lag */
+    z-index: 6;
   }
   #stroke-overlay.drawing-mode { pointer-events: all; cursor: crosshair; z-index: 999; }
 
@@ -457,6 +466,8 @@
   }
   .status-item { font-size: 10px; color: #555; font-family: 'DM Mono', monospace; }
   .status-item span { color: #888; }
+  #status-zoom.at-min { color: var(--accent2); }
+  #status-zoom.at-min::after { content: ' MIN'; font-size: 9px; opacity: 0.7; }
 
   /* ── HIDDEN INPUTS ── */
   #audio-input, #image-input, #project-input { display: none; }
@@ -525,6 +536,7 @@
 
   <div id="toolbar-right">
     <button class="tb-btn-text" id="btn-tutorial">? Tutorial</button>
+    <button class="tb-btn-text" id="btn-recenter" title="Recenter canvas">&#8982; Recenter</button>
     <button class="tb-btn-text" id="btn-clear-draw">&#9003; Clear Ink</button>
     <button class="tb-btn-text" id="btn-load">&#128194; Load</button>
     <button class="tb-btn-text primary" id="btn-save">&#128190; Save</button>
@@ -533,8 +545,11 @@
 
 <!-- CANVAS -->
 <div id="canvas-container">
-  <div id="infinite-canvas">
-    <canvas id="draw-canvas"></canvas>
+  <div id="scroll-wrapper">
+    <div id="infinite-canvas">
+      <canvas id="draw-canvas"></canvas>
+    </div>
+    <canvas id="stroke-overlay"></canvas>
   </div>
 </div>
 
@@ -545,9 +560,6 @@
   <div class="status-item">POS: <span id="status-pos">0, 0</span></div>
   <div class="status-item" id="status-audio-info">AUDIO: <span>none</span></div>
 </div>
-
-<!-- STROKE OVERLAY (screen-res, for smooth live drawing) -->
-<canvas id="stroke-overlay"></canvas>
 
 <!-- FILE:// PROTOCOL NOTICE -->
 <div id="file-notice">
@@ -568,15 +580,16 @@
 // ═══════════════════════════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════════════════════════
+// Canvas constants — declared early so all functions can reference them
+const CANVAS_SIZE = 8000;
+const PAN_MARGIN  = 100; // minimum px of canvas visible at each edge (screen-space)
+
 const state = {
   tool: 'select',      // select | draw | erase | text
   zoom: 1,
-  panX: 100, panY: 100,
   strokeColor: '#1a1814',
   brushSize: 3,
   isDrawing: false,
-  isPanning: false,
-  panStart: null,
   drawPoints: [],
   frameCount: 0,
   waveformCount: 0,
@@ -598,19 +611,47 @@ drawCanvas.height = 8000;
 // Transform cache — keeps drawing overlay coords in sync without layout reflow
 let _tx = 0, _ty = 0, _tz = 1;
 
+// Calculate the minimum zoom so the canvas always fills the viewport.
+// Canvas is CANVAS_SIZE px; viewport excludes toolbar + statusbar.
+function getMinZoom() {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight - 52 - 26;
+  // Canvas must always be at least as large as the viewport so you
+  // can't pan into blank space. Also enforce a 25% floor for usability.
+  const fitZoom = Math.max(vw / CANVAS_SIZE, vh / CANVAS_SIZE);
+  return Math.max(fitZoom, 0.25);
+}
+
+const scrollWrapper = document.getElementById('scroll-wrapper');
+
 function applyTransform() {
-  infiniteCanvas.style.transform = `translate(${state.panX}px, ${state.panY}px) scale(${state.zoom})`;
-  document.getElementById('status-zoom').textContent = Math.round(state.zoom * 100) + '%';
-  // Keep cached transform in sync (used by drawing overlay to avoid reflow)
-  _tx = state.panX; _ty = state.panY; _tz = state.zoom;
+  // Zoom scales the scroll-wrapper so scrollable area grows/shrinks with zoom
+  scrollWrapper.style.transform = `scale(${state.zoom})`;
+  scrollWrapper.style.width  = CANVAS_SIZE + 'px';
+  scrollWrapper.style.height = CANVAS_SIZE + 'px';
+  // Tell container how big the scaled content actually is
+  // (browser needs explicit size for scrollbars to work correctly)
+  const scaledSize = CANVAS_SIZE * state.zoom;
+  scrollWrapper.style.marginRight  = Math.max(0, scaledSize - CANVAS_SIZE) + 'px';
+  scrollWrapper.style.marginBottom = Math.max(0, scaledSize - CANVAS_SIZE) + 'px';
+
+  const pct = Math.round(state.zoom * 100);
+  const minPct = Math.round(getMinZoom() * 100);
+  const zoomEl = document.getElementById('status-zoom');
+  zoomEl.textContent = pct + '%';
+  zoomEl.classList.toggle('at-min', pct <= minPct + 2);
+  // Update transform cache for drawing coordinate conversion
+  _tx = -container.scrollLeft / state.zoom;
+  _ty = -container.scrollTop  / state.zoom;
+  _tz = state.zoom;
 }
 applyTransform();
 
-// Client coords → canvas coords
+// Client coords → canvas coords (accounts for scroll position and zoom)
 function toCanvas(cx, cy) {
   return {
-    x: (cx - state.panX) / state.zoom,
-    y: (cy - state.panY) / state.zoom,
+    x: (cx + container.scrollLeft) / state.zoom,
+    y: (cy - 52 + container.scrollTop) / state.zoom,
   };
 }
 
@@ -661,13 +702,14 @@ document.addEventListener('keydown', e => {
 // ═══════════════════════════════════════════════════════════
 // CANVAS PANNING (Middle Mouse)
 // ═══════════════════════════════════════════════════════════
+// Panning is now handled natively by the browser scrollbars.
+// We just sync the transform cache whenever the container scrolls.
+container.addEventListener('scroll', () => {
+  _tx = -container.scrollLeft / state.zoom;
+  _ty = -container.scrollTop  / state.zoom;
+});
+
 container.addEventListener('mousedown', e => {
-  if (e.button === 1) {
-    e.preventDefault();
-    state.isPanning = true;
-    state.panStart = { x: e.clientX - state.panX, y: e.clientY - state.panY };
-    container.style.cursor = 'grabbing';
-  }
   if (e.button === 0 && state.tool === 'text') {
     const pos = toCanvas(e.clientX, e.clientY);
     addLabel(pos.x, pos.y);
@@ -676,33 +718,33 @@ container.addEventListener('mousedown', e => {
 });
 
 window.addEventListener('mousemove', e => {
-  if (state.isPanning) {
-    state.panX = e.clientX - state.panStart.x;
-    state.panY = e.clientY - state.panStart.y;
-    applyTransform();
-  }
   const pos = toCanvas(e.clientX, e.clientY);
   document.getElementById('status-pos').textContent = `${Math.round(pos.x)}, ${Math.round(pos.y)}`;
 });
 
-window.addEventListener('mouseup', e => {
-  if (e.button === 1) {
-    state.isPanning = false;
-    container.style.cursor = state.tool === 'select' ? 'default' : 'crosshair';
-  }
-});
-
-// Scroll to zoom
+// Scroll wheel zooms toward the mouse cursor position
 container.addEventListener('wheel', e => {
+  if (!e.ctrlKey && e.deltaX === 0) {
+    // Plain scroll — let browser handle it natively (scrolls the container)
+    return;
+  }
   e.preventDefault();
   const delta = e.deltaY > 0 ? 0.9 : 1.1;
-  const newZoom = Math.max(0.1, Math.min(4, state.zoom * delta));
-  // Zoom toward mouse position
-  const mx = e.clientX, my = e.clientY;
-  state.panX = mx - (mx - state.panX) * (newZoom / state.zoom);
-  state.panY = my - (my - state.panY) * (newZoom / state.zoom);
+  const newZoom = Math.max(getMinZoom(), Math.min(4, state.zoom * delta));
+  if (newZoom === state.zoom) return;
+
+  // Keep the canvas point under the mouse cursor stationary while zooming
+  // mouseCanvasX = (clientX + scrollLeft) / oldZoom
+  // After zoom: newScrollLeft = mouseCanvasX * newZoom - clientX
+  const mouseCanvasX = (e.clientX + container.scrollLeft) / state.zoom;
+  const mouseCanvasY = (e.clientY - 52 + container.scrollTop) / state.zoom;
   state.zoom = newZoom;
   applyTransform();
+  container.scrollLeft = mouseCanvasX * newZoom - e.clientX;
+  container.scrollTop  = mouseCanvasY * newZoom - (e.clientY - 52);
+  // Re-sync cache after scroll adjustment
+  _tx = -container.scrollLeft / state.zoom;
+  _ty = -container.scrollTop  / state.zoom;
 }, { passive: false });
 
 container.addEventListener('contextmenu', e => e.preventDefault());
@@ -733,15 +775,20 @@ const octx    = overlay.getContext('2d');
 
 function resizeOverlay() {
   overlay.width  = window.innerWidth;
-  overlay.height = window.innerHeight;
+  overlay.height = window.innerHeight - 52 - 26; // container excludes toolbar + statusbar
 }
 resizeOverlay();
-window.addEventListener('resize', resizeOverlay);
+window.addEventListener('resize', () => {
+  resizeOverlay();
+  const minZ = getMinZoom();
+  if (state.zoom < minZ) state.zoom = minZ;
+  applyTransform();
+});
 
 // Sync cache helper (variables declared above near applyTransform)
 function invalidateTransformCache() {
-  _tx = state.panX;
-  _ty = state.panY;
+  _tx = -container.scrollLeft / state.zoom;
+  _ty = -container.scrollTop  / state.zoom;
   _tz = state.zoom;
 }
 invalidateTransformCache();
@@ -750,12 +797,18 @@ invalidateTransformCache();
 // clientY from the overlay (position:fixed, top:0) must subtract the
 // canvas-container top offset (TOOLBAR_H) so Y lines up with canvas space.
 function screenToCanvas(sx, sy) {
-  return { x: (sx - _tx) / _tz, y: (sy - TOOLBAR_H - _ty) / _tz };
+  return {
+    x: (sx + container.scrollLeft) / state.zoom,
+    y: (sy - TOOLBAR_H + container.scrollTop) / state.zoom,
+  };
 }
 
-// Canvas coords → screen coords (inverse, for drawing selection highlight)
+// Canvas coords → screen coords (inverse)
 function canvasToScreen(cx, cy) {
-  return { x: cx * _tz + _tx, y: cy * _tz + _ty + TOOLBAR_H };
+  return {
+    x: cx * state.zoom - container.scrollLeft,
+    y: cy * state.zoom - container.scrollTop + TOOLBAR_H,
+  };
 }
 
 // ── Stroke history ──────────────────────────────────────────
@@ -796,59 +849,70 @@ function drawStrokeToCtx(targetCtx, s) {
 // Drawing in canvas-space (not screen-space) means strokes are never
 // clipped at screen edges, regardless of zoom level or pan position.
 
-let liveStrokeCanvasPoints = []; // canvas-space points for the stroke in progress
+// ── Drawing engine ───────────────────────────────────────────
+// Live strokes render on the screen-res overlay (smooth, no flicker).
+// On commit the stroke is converted to canvas-space, added to history,
+// and drawn onto drawCanvas. The overlay is then cleared.
+//
+// activePoints: screen-space { sx, sy, w, color } collected during stroke.
+let activePoints = [];
 let activeIsErase = false;
 
-// Draw just the newest segment incrementally onto drawCanvas (fast — no full repaint)
-function renderLiveSegment() {
-  const pts = liveStrokeCanvasPoints;
-  if (pts.length < 2) return;
-  const i = pts.length - 1;
-  const pa = pts[i - 1], pb = pts[i];
-  const mx = (pa.x + pb.x) / 2, my = (pa.y + pb.y) / 2;
-  ctx.save();
-  ctx.globalCompositeOperation = activeIsErase ? 'destination-out' : 'source-over';
-  ctx.strokeStyle = pb.color;
-  ctx.lineWidth   = pb.w;
-  ctx.lineCap     = 'round';
-  ctx.lineJoin    = 'round';
-  ctx.beginPath();
-  ctx.moveTo(pa.x, pa.y);
-  ctx.quadraticCurveTo(pa.x, pa.y, mx, my);
-  ctx.lineTo(pb.x, pb.y);
-  ctx.stroke();
-  ctx.restore();
+// Render the complete in-progress stroke onto the overlay each frame.
+// Repainting the whole path (not just the latest segment) gives smooth curves
+// because quadratic Bézier needs all prior points to look right.
+function renderOverlayStroke() {
+  octx.clearRect(0, 0, overlay.width, overlay.height);
+  if (activePoints.length < 2) return;
+  // Overlay is position:absolute inside canvas-container (top:52px in viewport).
+  // clientY is viewport-relative, so subtract TOOLBAR_H to get overlay-relative y.
+  const oy = TOOLBAR_H;
+  octx.save();
+  octx.lineCap  = 'round';
+  octx.lineJoin = 'round';
+  octx.beginPath();
+  octx.moveTo(activePoints[0].sx, activePoints[0].sy - oy);
+  for (let i = 1; i < activePoints.length; i++) {
+    const pa = activePoints[i - 1], pb = activePoints[i];
+    const mx = (pa.sx + pb.sx) / 2;
+    const my = (pa.sy + pb.sy) / 2 - oy;
+    octx.lineWidth   = pb.w;
+    octx.strokeStyle = pb.color;
+    octx.quadraticCurveTo(pa.sx, pa.sy - oy, mx, my);
+  }
+  const last = activePoints[activePoints.length - 1];
+  octx.lineTo(last.sx, last.sy - oy);
+  octx.lineWidth   = last.w;
+  octx.strokeStyle = last.color;
+  octx.stroke();
+  octx.restore();
 }
 
 let rafPending = false;
 function scheduleOverlayRender() {
   if (rafPending) return;
   rafPending = true;
-  requestAnimationFrame(() => { rafPending = false; renderLiveSegment(); });
+  requestAnimationFrame(() => { rafPending = false; renderOverlayStroke(); });
 }
 
-// Commit: stroke is already painted incrementally. Store in history then
-// do a clean redraw so it matches the smoothed committed path exactly.
+// Commit: convert screen-space points → canvas-space, store in history,
+// paint onto drawCanvas incrementally (no full redraw needed), clear overlay.
 function commitStroke(isErase) {
-  if (liveStrokeCanvasPoints.length < 2) {
-    liveStrokeCanvasPoints = [];
-    redrawAllStrokes();
-    return;
-  }
-  const stroke = {
-    points: liveStrokeCanvasPoints.map(p => ({ x: p.x, y: p.y, w: p.w })),
-    color:  liveStrokeCanvasPoints[0].color,
-    isErase,
-    offsetX: 0, offsetY: 0,
-  };
+  octx.clearRect(0, 0, overlay.width, overlay.height);
+  if (activePoints.length < 2) { activePoints = []; return; }
+  const canvasPoints = activePoints.map(p => {
+    const c = screenToCanvas(p.sx, p.sy);
+    return { x: c.x, y: c.y, w: p.w / _tz };
+  });
+  const stroke = { points: canvasPoints, color: activePoints[0].color, isErase, offsetX: 0, offsetY: 0 };
   strokeHistory.push(stroke);
-  redrawAllStrokes();   // clean repaint so committed stroke matches history exactly
-  liveStrokeCanvasPoints = [];
+  drawStrokeToCtx(ctx, stroke); // paint just this new stroke — fast, no full repaint
+  activePoints = [];
 }
 
-// ── Pointer events ───────────────────────────────────────────
-// overlayActivate / overlayDeactivate manage pointer-events so the
-// overlay never blocks clicks when a stroke isn't actively being drawn.
+// ── Overlay activate / deactivate ────────────────────────────
+// Overlay is only hot (pointer-events:all, high z-index) during an active stroke.
+// Between strokes it's invisible to clicks so frames remain accessible.
 function overlayActivate() {
   overlay.style.pointerEvents = 'all';
   overlay.style.cursor = 'crosshair';
@@ -860,21 +924,20 @@ function overlayDeactivate() {
   overlay.style.zIndex = '6';
 }
 
-// Listen for pointerdown on the whole window so we catch the very first tap
-// before setPointerCapture locks events to the overlay.
+// ── Pointer events ───────────────────────────────────────────
 window.addEventListener('pointerdown', e => {
   if (state.tool !== 'draw' && state.tool !== 'erase') return;
+  if (e.button === 1) return; // never intercept middle mouse — that's for panning
   if (e.button !== 0 && e.pointerType === 'mouse') return;
   if (e.target.closest('.sb-frame, .waveform-block, #toolbar')) return;
   activeIsErase = state.tool === 'erase';
   overlayActivate();
   overlay.setPointerCapture(e.pointerId);
   state.isDrawing = true;
-  liveStrokeCanvasPoints = [];
+  activePoints = [];
   const pressure = e.pressure > 0 ? e.pressure : 0.5;
   const w = activeIsErase ? state.brushSize * 6 : Math.max(1, state.brushSize * pressure * 2);
-  const cp = screenToCanvas(e.clientX, e.clientY);
-  liveStrokeCanvasPoints.push({ x: cp.x, y: cp.y, w, color: state.strokeColor });
+  activePoints.push({ sx: e.clientX, sy: e.clientY, w, color: state.strokeColor });
 }, { capture: true });
 
 overlay.addEventListener('pointermove', e => {
@@ -883,8 +946,7 @@ overlay.addEventListener('pointermove', e => {
   for (const ev of events) {
     const pressure = ev.pressure > 0 ? ev.pressure : 0.5;
     const w = activeIsErase ? state.brushSize * 6 : Math.max(1, state.brushSize * pressure * 2);
-    const cp = screenToCanvas(ev.clientX, ev.clientY);
-    liveStrokeCanvasPoints.push({ x: cp.x, y: cp.y, w, color: state.strokeColor });
+    activePoints.push({ sx: ev.clientX, sy: ev.clientY, w, color: state.strokeColor });
   }
   scheduleOverlayRender();
 });
@@ -892,8 +954,8 @@ overlay.addEventListener('pointermove', e => {
 function finishStroke() {
   if (!state.isDrawing) return;
   state.isDrawing = false;
-  commitStroke(state.tool === 'erase');
-  overlayDeactivate();   // ← release the overlay so frames are clickable again
+  commitStroke(activeIsErase);
+  overlayDeactivate();
 }
 
 overlay.addEventListener('pointerup',     finishStroke);
@@ -1753,7 +1815,7 @@ document.getElementById('project-input').addEventListener('change', e => {
 function saveProject() {
   const proj = {
     version: 1,
-    pan: { x: state.panX, y: state.panY },
+    pan: { x: container.scrollLeft, y: container.scrollTop, zoom: state.zoom },
     zoom: state.zoom,
     frames: [],
     labels: [],
@@ -1823,8 +1885,13 @@ function loadProject(proj) {
   ctx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
   state.frameCount = 0; state.labelCount = 0; state.imageCount = 0;
 
-  state.panX = proj.pan?.x ?? 100;
-  state.panY = proj.pan?.y ?? 100;
+  const _cw = window.innerWidth, _ch = window.innerHeight - 52 - 26;
+  state.zoom = proj.pan?.zoom ?? Math.max(getMinZoom(), 1);
+  state.zoom = Math.max(getMinZoom(), state.zoom);
+  applyTransform();
+  // Restore scroll position, defaulting to canvas centre
+  container.scrollLeft = proj.pan?.x ?? (CANVAS_SIZE * state.zoom / 2 - _cw / 2);
+  container.scrollTop  = proj.pan?.y ?? (CANVAS_SIZE * state.zoom / 2 - _ch / 2);
   state.zoom = proj.zoom ?? 1;
   applyTransform();
 
@@ -1934,14 +2001,13 @@ function openTutorial() {
     // Pan canvas so tutorial is visible
     const tx = parseFloat(tutorialFrame.style.left) || 100;
     const ty = parseFloat(tutorialFrame.style.top)  || 100;
-    state.panX = window.innerWidth  / 2 - tx * state.zoom - 200;
-    state.panY = window.innerHeight / 2 - ty * state.zoom - 150;
-    applyTransform();
+    container.scrollLeft = tx * state.zoom - window.innerWidth  / 2 + 200;
+    container.scrollTop  = ty * state.zoom - (window.innerHeight - 52) / 2 + 150;
     return;
   }
   // Create it near current view centre
-  const cx = (window.innerWidth  / 2 - state.panX) / state.zoom - 220;
-  const cy = (window.innerHeight / 2 - state.panY) / state.zoom - 300;
+  const cx = (container.scrollLeft + window.innerWidth  / 2) / state.zoom - 220;
+  const cy = (container.scrollTop  + (window.innerHeight - 52) / 2) / state.zoom - 300;
   tutorialFrame = addFrame({
     x: cx, y: cy, w: 440, h: 600,
     title: 'How To Use MusicBoard',
@@ -1958,20 +2024,43 @@ function openTutorial() {
 
 document.getElementById('btn-tutorial').addEventListener('click', openTutorial);
 
+document.getElementById('btn-recenter').addEventListener('click', () => {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight - 52 - 26;
+  container.scrollLeft = CANVAS_SIZE * state.zoom / 2 - vw / 2;
+  container.scrollTop  = CANVAS_SIZE * state.zoom / 2 - vh / 2;
+});
+
 // ═══════════════════════════════════════════════════════════
 // WELCOME: add one sample frame to get started
 // ═══════════════════════════════════════════════════════════
 window.addEventListener('load', () => {
-  // Center canvas
-  state.panX = 60; state.panY = 80;
-  applyTransform();
+  // Centre the 8000×8000 canvas in the viewport so there's equal drawing
+  // room in all directions. The canvas origin (0,0) maps to the top-left
+  // of infinite space; we pan so the centre (4000,4000) is at screen centre.
+  const CANVAS_CENTRE = CANVAS_SIZE / 2;  // 4000
 
-  addFrame({ x: 80, y: 60, w: 260, h: 200, title: 'Shot 01 — Intro', activeTab: 'text', textContent: 'Describe your opening shot here…' });
-  addFrame({ x: 380, y: 60, w: 260, h: 200, title: 'Shot 02', activeTab: 'draw' });
-  addFrame({ x: 80, y: 300, w: 260, h: 200, title: 'Shot 03', activeTab: 'draw' });
+  // Available viewport height excludes toolbar (52px) and status bar (26px)
+  const vw = window.innerWidth;
+  const vh = window.innerHeight - 52 - 26;
+
+  // Ensure starting zoom respects viewport minimum
+  state.zoom = Math.max(getMinZoom(), state.zoom);
+  applyTransform();
+  // Scroll to centre of the 8000×8000 canvas
+  container.scrollLeft = CANVAS_CENTRE * state.zoom - vw / 2;
+  container.scrollTop  = CANVAS_CENTRE * state.zoom - vh / 2;
+
+  // Place welcome frames near the canvas centre
+  const fx = CANVAS_CENTRE - 420;
+  const fy = CANVAS_CENTRE - 180;
+
+  addFrame({ x: fx,       y: fy, w: 260, h: 200, title: 'Shot 01 — Intro', activeTab: 'text', textContent: 'Describe your opening shot here…' });
+  addFrame({ x: fx + 300, y: fy, w: 260, h: 200, title: 'Shot 02', activeTab: 'draw' });
+  addFrame({ x: fx,       y: fy + 240, w: 260, h: 200, title: 'Shot 03', activeTab: 'draw' });
 
   // Welcome label
-  const lbl = addLabel(730, 80, '← Drop an audio file anywhere or click ♫ in the toolbar');
+  const lbl = addLabel(fx + 600, fy, '← Drop an audio file anywhere or click ♫ in the toolbar');
   lbl.querySelector('input').style.width = '460px';
   lbl.querySelector('input').style.color = '#888';
   lbl.querySelector('input').style.fontSize = '12px';
