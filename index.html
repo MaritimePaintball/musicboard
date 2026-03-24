@@ -178,8 +178,8 @@
 
   /* Screen-resolution overlay for low-latency live strokes */
   #stroke-overlay {
-    position: absolute;
-    top: 0; left: 0;
+    position: fixed;
+    top: 52px; left: 0;   /* sits over canvas-container, below toolbar */
     pointer-events: none;
     z-index: 6;
   }
@@ -549,9 +549,10 @@
     <div id="infinite-canvas">
       <canvas id="draw-canvas"></canvas>
     </div>
-    <canvas id="stroke-overlay"></canvas>
   </div>
 </div>
+<!-- Overlay is fixed to viewport so it's always visible regardless of scroll -->
+<canvas id="stroke-overlay"></canvas>
 
 <!-- STATUS BAR -->
 <div id="statusbar">
