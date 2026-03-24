@@ -2201,59 +2201,108 @@ const TUTORIAL_TEXT = `MUSICBOARD — HOW TO USE
 TOOLS (keyboard shortcuts)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
 ▶ Select / Move [V]
-  Click and drag frames, images, or drawn strokes to reposition them. In draw mode, switch back to Select to pick up and move individual doodles.
+  The default tool. Click any stroke, shape, frame, image, or label to select it. Drag to reposition. Selected strokes and shapes show an orange dashed bounding box. Click empty canvas to deselect.
 
 ✎ Draw [D]
-  Freehand drawing directly on the whiteboard or inside a frame's Draw tab. Works with drawing tablets — pressure sensitivity is supported. Use the INK colour picker and SIZE slider in the toolbar to adjust your stroke.
+  Freehand drawing on the whiteboard or inside a frame's Draw tab. Drawing tablets are fully supported with pressure sensitivity. Use the INK colour picker and SIZE slider to adjust colour and brush size.
 
 □ Erase [E]
-  Erases freehand ink on the whiteboard canvas. Switch to this tool and draw over any strokes you want to remove.
+  Erases freehand ink and shapes on the whiteboard. Draw over anything you want to remove.
+
+⬜ Shapes [S]
+  Draw rectangles, circles, and arrows on the canvas. Selecting the shape tool reveals three sub-tools in the toolbar:
+  • ⬜ Rectangle — drag to draw
+  • ⭕ Circle    — drag to draw an ellipse
+  • ➔ Arrow     — drag from tail to tip; arrowhead scales automatically
+
+  Use INK for the outline colour and FILL for the interior colour.
+  Click the FILL button to toggle fill on or off (amber = fill active).
+  Use the SIZE slider to control outline thickness.
+  All shapes are selectable and moveable in Select mode.
 
 T  Text Label [T]
-  Click anywhere on the whiteboard to place a freestanding text label. Click the label to type. Drag it to reposition.
+  Click anywhere on the whiteboard to place a freestanding text label. Drag to reposition.
+
+COLOUR AND SIZE
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+  INK         Stroke and outline colour for drawing and shapes
+  FILL        Interior fill colour for shapes
+  FILL button Toggle shape fill on or off
+  SIZE        Brush size for freehand drawing and shape outline thickness
 
 FRAMES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
 □  Add Frame [F]
   Adds a storyboard card to the canvas. Each frame has three tabs:
-  • DRAW  — freehand sketch inside the frame (tablet-friendly)
+  • DRAW  — freehand sketch inside the frame, tablet-friendly
   • TEXT  — typed notes, descriptions, shot details
-  • MEDIA — import an image, video file (MP4/WebM/MOV), or embed a YouTube link into the frame
+  • MEDIA — import an image, video file (MP4/WebM/MOV), or embed a YouTube link
 
-  Drag a frame by its header bar to reposition it.
-  Resize a frame by dragging the handle at the bottom-right corner.
+  Drag a frame by its dark header bar to reposition it.
+  Resize by dragging the handle at the bottom-right corner.
   Right-click the header bar to rename the frame.
-  Click ✕ in the header to delete the frame.
+  Click the X in the header to delete the frame.
+  For media frames with content loaded, hover the media area and click the swap button to change media without removing the frame.
+
+  Note: YouTube links require the app to be served over HTTP (not opened as a local file). Run python3 -m http.server 8080 in the project folder if needed.
 
 AUDIO WAVEFORM
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
 ♫  Add Audio Track [A]
-  Load an audio file (MP3, WAV, FLAC, AAC, etc.) onto the canvas as a visual waveform. You can also drag and drop an audio file directly onto the whiteboard.
+  Load an audio file (MP3, WAV, FLAC, AAC, M4A, etc.) onto the canvas as a waveform timeline. You can also drag and drop audio files directly onto the whiteboard.
 
-  ▶ / ⏸  Play and pause the track.
-  ■       Stop and return to the beginning.
-  🔊      Click to mute/unmute. Drag the volume slider to adjust level.
-  ⊟ / 🔒  Lock the waveform's position so it cannot be accidentally moved (it can still be stretched while locked).
-  Click and drag either side edge of the waveform to stretch or compress its display width — zoom in to see more detail, zoom out for an overview.
-  Click anywhere on the waveform to scrub to that position. Drag to scrub continuously.
+  Play / Pause  Click the play button or press it again to pause
+  Stop          Returns playback to the beginning
+  Volume        Click the speaker icon to mute or unmute; drag the slider to adjust level
+  Lock          Click the lock button to prevent the waveform from being moved accidentally. Locked waveforms can still be resized.
+  Resize width  Drag either side edge to stretch or compress the waveform display scale
+  Resize height Drag the bottom edge to make the waveform taller
+  Scrub         Click anywhere on the waveform to jump to that position; drag to scrub continuously
+  Time ruler    Tick marks every second, timestamps every 5 seconds
+
+  Note: Audio files cannot be stored in the save file due to browser limits. Re-add audio after loading a project.
 
 IMAGES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
 🖼  Import Image [I]
-  Places a JPG, PNG, TIFF, or GIF onto the canvas as a moveable object. Drag to reposition, drag the bottom-right corner to resize. Hover and click ✕ to remove. You can also drag and drop image files directly onto the whiteboard.
+  Places a JPG, PNG, TIFF, or GIF onto the canvas as a moveable object. Drag to reposition, drag the bottom-right corner to resize. Hover and click X to remove. You can also drag and drop image files directly onto the whiteboard.
 
 CANVAS NAVIGATION
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Pan       Middle mouse button + drag
-  Zoom      Scroll wheel (zooms toward cursor position)
+  Scroll          Mouse wheel or trackpad to pan the canvas
+  Zoom            Ctrl + scroll wheel, zooms toward the cursor
+  Recenter        Click Recenter in the toolbar to return to the canvas centre
+  Zoom limit      The canvas cannot zoom out past the point where it fills your screen. The ZOOM indicator in the status bar turns amber and shows MIN at the zoom limit.
+
+WORKSPACES
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Each workspace is a fully independent canvas with its own frames, drawings, shapes, audio, and scroll position. Use them to organise different sections of a project.
+
+  + button        Add a new workspace (up to 8)
+  Click a tab     Switch workspaces
+  Double-click    Rename a workspace
+  X on tab        Close a workspace (the last workspace cannot be closed)
+
+  All workspaces save together in one project file.
 
 UTILITY BUTTONS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
-⌫ Clear Ink   Removes all freehand ink from the whiteboard (frames are unaffected).
-📂 Load        Open a previously saved MusicBoard project (.json).
-💾 Save        Save your entire project — frames, drawings, labels, images, and canvas position — as a .json file. Reload it any time with Load.
+  ? Tutorial    Open this guide
+  Recenter      Scroll to the canvas centre at the current zoom level
+  Clear Ink     Remove all freehand ink and shapes from the current workspace
+  Load          Open a saved MusicBoard project (.json)
+  Save          Save the full project including all workspaces as a .json file
 
-Note: Audio files are not stored in the save file due to browser limitations. You will need to re-add your audio track after loading a project.`;
+KEYBOARD SHORTCUTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+  V   Select / Move
+  D   Draw
+  E   Erase
+  S   Shapes
+  T   Text Label
+  F   Add Frame
+  A   Add Audio Track
+  I   Import Image`
 
 let tutorialFrame = null;
 
