@@ -768,10 +768,9 @@ function setTool(t) {
   // Overlay is activated per-stroke via overlayActivate/Deactivate.
   // When switching tools, always make sure it's deactivated.
   if (typeof overlayDeactivate === 'function') overlayDeactivate();
-  // Clear selection highlight when switching away from select
-  if (t !== 'select' && typeof octx !== 'undefined') {
+  // Clear overlay when switching tools
+  if (typeof octx !== 'undefined') {
     octx.clearRect(0, 0, overlay.width, overlay.height);
-    selectedStroke = null;
   }
   container.style.cursor = t === 'select' ? 'default' : t === 'text' ? 'text' : 'crosshair';
 }
@@ -1068,7 +1067,14 @@ function commitStroke(isErase) {
   });
   const stroke = { points: canvasPoints, color: activePoints[0].color, isErase, offsetX: 0, offsetY: 0 };
   strokeHistory.push(stroke);
-  drawStrokeToCtx(ctx, stroke); // paint just this new stroke — fast, no full repaint
+  if (isErase) {
+    // Erase strokes must be fully composited via a complete redraw so the
+    // canvas accurately reflects the erased state. Incremental paint won't
+    // correctly remove overlapping strokes drawn after the erase region.
+    redrawAllStrokes();
+  } else {
+    drawStrokeToCtx(ctx, stroke); // incremental — fast for non-erase strokes
+  }
   activePoints = [];
 }
 
@@ -1207,114 +1213,8 @@ function finishStroke(e) {
 overlay.addEventListener('pointerup',     finishStroke);
 overlay.addEventListener('pointercancel', finishStroke);
 
-// ── Select-mode stroke picking & dragging ────────────────────
-// In select mode, clicking on the canvas checks if the pointer is near
-// any stroke and lets the user drag it.
-
-let selectedStroke  = null;   // reference into strokeHistory
-let strokeDragStart = null;   // { mx, my, ox, oy } — mouse and offset at drag start
-
-// Bounding box of a stroke (canvas space, ignoring offset for hit-test speed)
-function strokeBounds(s) {
-  if (s.type === 'rect' || s.type === 'circle' || s.type === 'arrow') {
-    const pad = 20;
-    return {
-      minX: Math.min(s.x1, s.x2) - pad, minY: Math.min(s.y1, s.y2) - pad,
-      maxX: Math.max(s.x1, s.x2) + pad, maxY: Math.max(s.y1, s.y2) + pad,
-    };
-  }
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-  for (const p of s.points) {
-    if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
-    if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
-  }
-  const pad = 20;
-  return { minX: minX - pad, minY: minY - pad, maxX: maxX + pad, maxY: maxY + pad };
-}
-
-// Hit-test: is canvas point (cx,cy) within the shape or stroke?
-function strokeHitTest(s, cx, cy) {
-  const ox = s.offsetX || 0, oy = s.offsetY || 0;
-
-  if (s.type === 'rect' || s.type === 'circle' || s.type === 'arrow') {
-    // Shape hit-test: check bounding box with small padding
-    const pad = Math.max(8, (s.strokeWidth || 2) * 2) / _tz;
-    const x1 = Math.min(s.x1, s.x2) + ox - pad;
-    const y1 = Math.min(s.y1, s.y2) + oy - pad;
-    const x2 = Math.max(s.x1, s.x2) + ox + pad;
-    const y2 = Math.max(s.y1, s.y2) + oy + pad;
-    return cx >= x1 && cx <= x2 && cy >= y1 && cy <= y2;
-  }
-
-  const thresh = Math.max(12, (s.points[0]?.w || 4)) / _tz;
-  const b = strokeBounds(s);
-  if (cx < b.minX + ox - thresh || cx > b.maxX + ox + thresh ||
-      cy < b.minY + oy - thresh || cy > b.maxY + oy + thresh) return false;
-  for (const p of s.points) {
-    const dx = p.x + ox - cx, dy = p.y + oy - cy;
-    if (dx*dx + dy*dy < thresh*thresh) return true;
-  }
-  return false;
-}
-
-// Draw selection highlight around a stroke on the overlay
-function drawSelectionHighlight(s) {
-  octx.clearRect(0, 0, overlay.width, overlay.height);
-  if (!s) return;
-  const ox = s.offsetX || 0, oy = s.offsetY || 0;
-  // Dashed bounding box in canvas space → screen space
-  const b = strokeBounds(s);
-  const s1 = canvasToScreen(b.minX + ox, b.minY + oy);
-  const s2 = canvasToScreen(b.maxX + ox, b.maxY + oy);
-  const sx1 = s1.x, sy1 = s1.y, sx2 = s2.x, sy2 = s2.y;
-  octx.save();
-  octx.strokeStyle = '#e8500a';
-  octx.lineWidth = 1.5;
-  octx.setLineDash([5, 4]);
-  octx.strokeRect(sx1, sy1, sx2 - sx1, sy2 - sy1);
-  octx.restore();
-}
-
-// Stroke selection hit-testing — attached to container so overlay
-// doesn't need pointer-events and won't block frames/labels/images.
-container.addEventListener('mousedown', e => {
-  if (state.tool !== 'select' || e.button !== 0) return;
-  const cp = screenToCanvas(e.clientX, e.clientY);
-  // Find topmost stroke under cursor (iterate in reverse = top-drawn first)
-  let hit = null;
-  for (let i = strokeHistory.length - 1; i >= 0; i--) {
-    if (strokeHitTest(strokeHistory[i], cp.x, cp.y)) { hit = strokeHistory[i]; break; }
-  }
-  if (!hit) {
-    // Clicked empty canvas — deselect
-    if (selectedStroke) {
-      selectedStroke = null;
-      octx.clearRect(0, 0, overlay.width, overlay.height);
-    }
-    return;
-  }
-  // Hit a stroke — select and start drag
-  selectedStroke = hit;
-  strokeDragStart = { mx: cp.x, my: cp.y, ox: hit.offsetX, oy: hit.offsetY };
-  drawSelectionHighlight(hit);
-  e.stopPropagation();
-
-  const onMove = ev => {
-    if (!strokeDragStart) return;
-    const cp2 = screenToCanvas(ev.clientX, ev.clientY);
-    selectedStroke.offsetX = strokeDragStart.ox + (cp2.x - strokeDragStart.mx);
-    selectedStroke.offsetY = strokeDragStart.oy + (cp2.y - strokeDragStart.my);
-    redrawAllStrokes();
-    drawSelectionHighlight(selectedStroke);
-  };
-  const onUp = () => {
-    strokeDragStart = null;
-    window.removeEventListener('mousemove', onMove);
-    window.removeEventListener('mouseup', onUp);
-  };
-  window.addEventListener('mousemove', onMove);
-  window.addEventListener('mouseup', onUp);
-});
+// Strokes and shapes are permanent once drawn — select mode only applies
+// to DOM elements (frames, images, labels). No stroke drag/selection needed.
 
 document.getElementById('btn-clear-draw').addEventListener('click', () => {
   strokeHistory = [];
@@ -2218,7 +2118,7 @@ TOOLS (keyboard shortcuts)
   Use INK for the outline colour and FILL for the interior colour.
   Click the FILL button to toggle fill on or off (amber = fill active).
   Use the SIZE slider to control outline thickness.
-  All shapes are selectable and moveable in Select mode.
+  Shapes are drawn permanently. Use the Erase tool to remove them.
 
 T  Text Label [T]
   Click anywhere on the whiteboard to place a freestanding text label. Drag to reposition.
