@@ -1275,8 +1275,12 @@ function makeResizable(el, onResize) {
 function addFrame(opts) {
   state.frameCount++;
   const id = 'frame-' + Date.now();
-  const x = opts?.x ?? (Math.random() * 400 + 200);
-  const y = opts?.y ?? (Math.random() * 300 + 150);
+  // Default placement: near the current viewport centre in canvas space,
+  // with a small random offset so multiple frames don't stack exactly.
+  const viewCX = (container.scrollLeft + window.innerWidth  / 2) / state.zoom;
+  const viewCY = (container.scrollTop  + (window.innerHeight - TOOLBAR_H - 26) / 2) / state.zoom;
+  const x = opts?.x ?? (viewCX - 140 + (Math.random() * 80 - 40));
+  const y = opts?.y ?? (viewCY - 100 + (Math.random() * 80 - 40));
   const w = opts?.w ?? 280;
   const h = opts?.h ?? 200;
   const title = opts?.title ?? `Frame ${state.frameCount}`;
