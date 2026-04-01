@@ -172,6 +172,15 @@
     border-right: 1px solid var(--border); height: 100%;
     flex-shrink: 0;
   }
+  #pressure-wrap {
+    display: flex; align-items: center; padding: 0 10px;
+    border-right: 1px solid var(--border); height: 100%;
+    flex-shrink: 0;
+  }
+  #btn-pressure.active {
+    background: var(--accent); border-color: var(--accent);
+    color: #fff; box-shadow: 0 2px 8px rgba(59,130,246,0.4);
+  }
   #brush-size-wrap label {
     color: var(--text-muted); font-size: 10px; font-weight: 500;
     letter-spacing: 0.05em; text-transform: uppercase;
@@ -259,6 +268,8 @@
     position: fixed; top: 86px; left: 0; right: 0; bottom: 26px;
     overflow: scroll; cursor: default;
     background-color: var(--canvas-bg);
+    /* Prevent browser from claiming pen/touch for scrolling — we handle it */
+    touch-action: pan-x pan-y;
   }
 
   /* Scrollbar styling */
@@ -276,6 +287,7 @@
     position: relative;
     width: 8000px; height: 8000px;
     transform-origin: 0 0;
+    touch-action: none; /* pen events handled by JS */
   }
 
   #infinite-canvas {
@@ -683,6 +695,10 @@
     <input type="range" id="brush-size" min="1" max="40" value="3">
   </div>
 
+  <div id="pressure-wrap">
+    <button id="btn-pressure" class="tb-btn-text" title="Toggle pressure sensitivity">&#9997; Pressure</button>
+  </div>
+
   <div class="tb-group">
     <button class="tb-btn" id="btn-add-frame" title="Add Storyboard Frame (F)">&#9634;</button>
     <button class="tb-btn" id="btn-add-audio" title="Add Audio Track (A)">&#9835;</button>
@@ -854,6 +870,13 @@ Object.entries(toolBtns).forEach(([t, btn]) => btn.addEventListener('click', () 
 
 document.getElementById('stroke-color').addEventListener('input', e => { state.strokeColor = e.target.value; });
 document.getElementById('brush-size').addEventListener('input', e => { state.brushSize = +e.target.value; });
+
+// Pressure sensitivity toggle
+state.pressureEnabled = false;
+document.getElementById('btn-pressure').addEventListener('click', () => {
+  state.pressureEnabled = !state.pressureEnabled;
+  document.getElementById('btn-pressure').classList.toggle('active', state.pressureEnabled);
+});
 
 // Fill colour and toggle
 state.fillColor   = '#ffffff';
@@ -1265,8 +1288,12 @@ function commitShape(sx1, sy1, sx2, sy2) {
 window.addEventListener('pointerdown', e => {
   if (state.tool !== 'draw' && state.tool !== 'erase' && state.tool !== 'shape') return;
   if (e.button === 1) return;
-  if (e.button !== 0 && e.pointerType === 'mouse') return;
+  // Accept mouse (button 0) and pen (any button) — reject other mouse buttons
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
   if (e.target.closest('.sb-frame, .waveform-block, #toolbar, #tab-bar')) return;
+
+  // Prevent browser from treating pen input as a scroll/pan/drag gesture
+  e.preventDefault();
 
   if (state.tool === 'shape') {
     overlayActivate();
@@ -1281,25 +1308,26 @@ window.addEventListener('pointerdown', e => {
   overlay.setPointerCapture(e.pointerId);
   state.isDrawing = true;
   activePoints = [];
-  const pressure = e.pressure > 0 ? e.pressure : 0.5;
-  const w = activeIsErase ? state.brushSize * 6 : Math.max(1, state.brushSize * pressure * 2);
+  const pressure = (state.pressureEnabled && e.pressure > 0) ? e.pressure : 0.5;
+  const w = activeIsErase ? state.brushSize * 6 : Math.max(1, state.brushSize * (state.pressureEnabled ? pressure * 2 : 1));
   activePoints.push({ sx: e.clientX, sy: e.clientY, w, color: state.strokeColor });
 }, { capture: true });
 
 overlay.addEventListener('pointermove', e => {
   if (!state.isDrawing) return;
+  e.preventDefault(); // prevent browser pan/scroll during stroke (important for pen mode)
   if (state.tool === 'shape' && shapeStart) {
     renderShapePreview(shapeStart.sx, shapeStart.sy, e.clientX, e.clientY);
     return;
   }
   const events = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
   for (const ev of events) {
-    const pressure = ev.pressure > 0 ? ev.pressure : 0.5;
-    const w = activeIsErase ? state.brushSize * 6 : Math.max(1, state.brushSize * pressure * 2);
+    const pressure = (state.pressureEnabled && ev.pressure > 0) ? ev.pressure : 0.5;
+    const w = activeIsErase ? state.brushSize * 6 : Math.max(1, state.brushSize * (state.pressureEnabled ? pressure * 2 : 1));
     activePoints.push({ sx: ev.clientX, sy: ev.clientY, w, color: state.strokeColor });
   }
   scheduleOverlayRender();
-});
+}, { passive: false });
 
 function finishStroke(e) {
   if (!state.isDrawing) return;
