@@ -195,6 +195,9 @@
     box-shadow: 0 2px 8px rgba(59,130,246,0.4);
   }
   .tb-btn-text.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+  .tb-btn-text:disabled {
+    opacity: 0.38; cursor: default; pointer-events: none;
+  }
 
   /* ── WORKSPACE TABS ── */
   #tab-bar {
@@ -292,7 +295,7 @@
   /* Screen-resolution overlay for low-latency live strokes */
   #stroke-overlay {
     position: fixed;
-    top: 84px; left: 0;   /* sits over canvas-container, below toolbar+tabbar */
+    top: 86px; left: 0;   /* sits over canvas-container, below toolbar+tabbar */
     pointer-events: none;
     z-index: 6;
   }
@@ -689,6 +692,7 @@
   <div id="toolbar-right">
     <button class="tb-btn-text" id="btn-tutorial">? Tutorial</button>
     <button class="tb-btn-text" id="btn-recenter" title="Recenter canvas">&#8982; Recenter</button>
+    <button class="tb-btn-text" id="btn-undo" title="Undo (Ctrl+Z)" disabled>&#8630; Undo</button>
     <button class="tb-btn-text" id="btn-clear-draw">&#9003; Clear Ink</button>
     <button class="tb-btn-text" id="btn-load">&#128194; Load</button>
     <button class="tb-btn-text primary" id="btn-save">&#128190; Save</button>
@@ -998,6 +1002,22 @@ function canvasToScreen(cx, cy) {
 // Each entry: { points:[{x,y,w}…], color, isErase, offsetX, offsetY }
 // offsetX/Y are applied at render time so we can move strokes cheaply.
 let strokeHistory = [];
+let undoStack = []; // stores removed strokes for undo (max 5)
+const MAX_UNDO = 5;
+
+function updateUndoButton() {
+  const btn = document.getElementById('btn-undo');
+  if (btn) btn.disabled = strokeHistory.length === 0;
+}
+
+function undoLast() {
+  if (strokeHistory.length === 0) return;
+  const removed = strokeHistory.pop();
+  undoStack.push(removed);
+  if (undoStack.length > MAX_UNDO) undoStack.shift(); // keep max 5
+  redrawAllStrokes();
+  updateUndoButton();
+}
 
 // Redraw all committed strokes onto drawCanvas from vector data
 function redrawAllStrokes() {
@@ -1096,24 +1116,36 @@ let activeIsErase = false;
 function renderOverlayStroke() {
   octx.clearRect(0, 0, overlay.width, overlay.height);
   if (activePoints.length < 2) return;
-  // Overlay is position:absolute inside canvas-container (top:52px in viewport).
-  // clientY is viewport-relative, so subtract TOOLBAR_H to get overlay-relative y.
-  const oy = TOOLBAR_H;
+
+  // Convert each screen point → canvas space → back to overlay screen space.
+  // This uses the exact same math as screenToCanvas + canvasToScreen so the
+  // preview aligns pixel-perfectly with the committed stroke on drawCanvas.
+  // canvasToScreen: x = cx * zoom - scrollLeft,  y = cy * zoom - scrollTop + TOOLBAR_H
+  const pts = activePoints.map(p => {
+    const c = screenToCanvas(p.sx, p.sy); // canvas space
+    return {
+      ox: c.x * state.zoom - container.scrollLeft,
+      oy: c.y * state.zoom - container.scrollTop,  // overlay top = TOOLBAR_H, already excluded
+      w:  p.w,
+      color: p.color,
+    };
+  });
+
   octx.save();
   octx.lineCap  = 'round';
   octx.lineJoin = 'round';
   octx.beginPath();
-  octx.moveTo(activePoints[0].sx, activePoints[0].sy - oy);
-  for (let i = 1; i < activePoints.length; i++) {
-    const pa = activePoints[i - 1], pb = activePoints[i];
-    const mx = (pa.sx + pb.sx) / 2;
-    const my = (pa.sy + pb.sy) / 2 - oy;
+  octx.moveTo(pts[0].ox, pts[0].oy);
+  for (let i = 1; i < pts.length; i++) {
+    const pa = pts[i - 1], pb = pts[i];
+    const mx = (pa.ox + pb.ox) / 2;
+    const my = (pa.oy + pb.oy) / 2;
     octx.lineWidth   = pb.w;
     octx.strokeStyle = pb.color;
-    octx.quadraticCurveTo(pa.sx, pa.sy - oy, mx, my);
+    octx.quadraticCurveTo(pa.ox, pa.oy, mx, my);
   }
-  const last = activePoints[activePoints.length - 1];
-  octx.lineTo(last.sx, last.sy - oy);
+  const last = pts[pts.length - 1];
+  octx.lineTo(last.ox, last.oy);
   octx.lineWidth   = last.w;
   octx.strokeStyle = last.color;
   octx.stroke();
@@ -1138,14 +1170,13 @@ function commitStroke(isErase) {
   });
   const stroke = { points: canvasPoints, color: activePoints[0].color, isErase, offsetX: 0, offsetY: 0 };
   strokeHistory.push(stroke);
+  undoStack = []; // new stroke clears redo history
   if (isErase) {
-    // Erase strokes must be fully composited via a complete redraw so the
-    // canvas accurately reflects the erased state. Incremental paint won't
-    // correctly remove overlapping strokes drawn after the erase region.
     redrawAllStrokes();
   } else {
-    drawStrokeToCtx(ctx, stroke); // incremental — fast for non-erase strokes
+    drawStrokeToCtx(ctx, stroke);
   }
+  updateUndoButton();
   activePoints = [];
 }
 
@@ -1225,7 +1256,9 @@ function commitShape(sx1, sy1, sx2, sy2) {
     points: [{ x: c1.x, y: c1.y, w: 1 }, { x: c2.x, y: c2.y, w: 1 }], // for hit-test bbox
   };
   strokeHistory.push(shape);
+  undoStack = []; // new shape clears redo history
   drawStrokeToCtx(ctx, shape);
+  updateUndoButton();
 }
 
 // ── Pointer events ───────────────────────────────────────────
@@ -1289,9 +1322,22 @@ overlay.addEventListener('pointercancel', finishStroke);
 
 document.getElementById('btn-clear-draw').addEventListener('click', () => {
   strokeHistory = [];
-  selectedStroke = null;
+  undoStack = [];
   ctx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
   octx.clearRect(0, 0, overlay.width, overlay.height);
+  updateUndoButton();
+});
+
+document.getElementById('btn-undo').addEventListener('click', undoLast);
+
+// Ctrl+Z keyboard shortcut
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+    if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+      e.preventDefault();
+      undoLast();
+    }
+  }
 });
 
 // ═══════════════════════════════════════════════════════════
@@ -1369,7 +1415,7 @@ function addFrame(opts) {
 
   frame.innerHTML = `
     <div class="sb-frame-header">
-      <input class="sb-frame-title" value="${title}" placeholder="Label…" readonly title="Right-click to rename">
+      <input class="sb-frame-title" value="${title}" placeholder="Label…" readonly title="Double-click to rename">
       <button class="sb-frame-btn del" title="Delete">✕</button>
     </div>
     <div class="sb-frame-body">
@@ -1413,19 +1459,28 @@ function addFrame(opts) {
 
   // Right-click on header → edit title
   const titleInput = frame.querySelector('.sb-frame-title');
-  frame.querySelector('.sb-frame-header').addEventListener('contextmenu', e => {
-    e.preventDefault();
+
+  function activateTitle(e) {
+    if (e) e.preventDefault();
     titleInput.removeAttribute('readonly');
     titleInput.classList.add('editing');
     titleInput.focus();
     titleInput.select();
-  });
+  }
+
+  // Double-click OR right-click on the header to rename
+  frame.querySelector('.sb-frame-header').addEventListener('dblclick', activateTitle);
+  frame.querySelector('.sb-frame-header').addEventListener('contextmenu', activateTitle);
+  // Single click directly on the title text when already editing
+  titleInput.addEventListener('click', e => { if (!titleInput.readOnly) e.stopPropagation(); });
+
   titleInput.addEventListener('blur', () => {
     titleInput.setAttribute('readonly', '');
     titleInput.classList.remove('editing');
   });
   titleInput.addEventListener('keydown', e => {
     if (e.key === 'Enter') { titleInput.blur(); }
+    e.stopPropagation(); // prevent keyboard shortcuts firing while typing
   });
 
   // Media chooser inside frame
@@ -2215,7 +2270,7 @@ FRAMES
 
   Drag a frame by its dark header bar to reposition it.
   Resize by dragging the handle at the bottom-right corner.
-  Right-click the header bar to rename the frame.
+  Double-click the header bar to rename the frame (right-click also works).
   Click the X in the header to delete the frame.
   For media frames with content loaded, hover the media area and click the swap button to change media without removing the frame.
 
@@ -2372,7 +2427,7 @@ function restoreWorkspace(ws) {
   document.querySelectorAll('.sb-frame, .canvas-label, .canvas-image, .waveform-block').forEach(el => el.remove());
   ctx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
   octx.clearRect(0, 0, overlay.width, overlay.height);
-  strokeHistory = []; selectedStroke = null;
+  strokeHistory = []; undoStack = [];
   state.frameCount = 0; state.labelCount = 0; state.imageCount = 0;
 
   // Restore zoom + scroll
