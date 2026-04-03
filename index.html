@@ -18,6 +18,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="MusicBoard">
 <link rel="manifest" href="manifest.json">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
 <!-- Fonts — preconnect for speed, swap prevents invisible text during load -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -419,7 +421,7 @@
     position: absolute;
     background: var(--frame-bg);
     border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
+    border-radius: var(--radius);
     min-width: 160px; min-height: 120px;
     box-shadow: var(--shadow);
     z-index: 40;
@@ -435,16 +437,16 @@
   .sb-frame-header {
     background: var(--panel2);
     border-bottom: 1px solid var(--border);
-    height: 32px; display: flex; align-items: center;
+    height: 36px; display: flex; align-items: center;
     padding: 0 10px; gap: 6px; cursor: move; flex-shrink: 0;
-    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   }
   .sb-frame-title {
-    flex: 1; font-size: 11px; color: var(--text);
+    flex: 1; font-size: 12px; color: var(--text);
     font-family: 'Inter', sans-serif; font-weight: 600;
     background: none; border: none; outline: none;
     cursor: default; letter-spacing: 0em; min-width: 0;
     pointer-events: none;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   .sb-frame-title.editing {
     cursor: text; pointer-events: all;
@@ -463,6 +465,29 @@
   }
   .sb-frame-btn:hover { background: var(--bg); color: var(--text); }
   .sb-frame-btn.del:hover { background: rgba(239,68,68,0.1); color: #ef4444; }
+  .sb-frame-btn.pin { color: var(--text-muted); font-size: 14px; }
+  .sb-frame-btn.pin:hover { color: var(--accent); background: var(--bg); }
+  .sb-frame-btn.pin.pinned {
+    color: white; background: var(--accent);
+    box-shadow: 0 1px 4px rgba(59,130,246,0.4);
+  }
+  .sb-frame-btn.pin.pinned:hover { background: var(--accent-hover); color: white; }
+
+  /* Pin button for images and labels */
+  .pin-btn {
+    position: absolute; top: -8px; left: -8px;
+    width: 20px; height: 20px; border-radius: 50%;
+    background: white; border: 1px solid var(--border-strong);
+    color: var(--text-muted); font-size: 11px;
+    cursor: pointer; display: flex; align-items: center;
+    justify-content: center; box-shadow: var(--shadow-sm);
+    transition: all 0.15s; z-index: 10;
+    line-height: 1; padding: 0;
+  }
+  .pin-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .pin-btn.pinned { background: var(--accent); border-color: var(--accent); color: white; }
+  .pinned-element { cursor: default !important; }
+  .pinned-element .sb-frame-header { cursor: default !important; }
 
   .sb-frame-body {
     flex: 1; position: relative; overflow: hidden;
@@ -642,6 +667,84 @@
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
 
+  /* ── EASTER EGG ── */
+  #easter-egg-modal {
+    position: fixed; inset: 0;
+    background: rgba(30,41,59,0.5);
+    z-index: 9999;
+    display: flex; align-items: center; justify-content: center;
+    backdrop-filter: blur(4px);
+    animation: fadeIn 0.2s ease;
+  }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  #easter-egg-box {
+    background: white;
+    border-radius: var(--radius-lg);
+    padding: 36px 40px;
+    text-align: center;
+    box-shadow: 0 20px 60px rgba(30,41,59,0.25);
+    display: flex; flex-direction: column;
+    align-items: center; gap: 12px;
+    max-width: 320px;
+    animation: popIn 0.25s cubic-bezier(0.34,1.56,0.64,1);
+  }
+  @keyframes popIn { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  #easter-egg-emoji { font-size: 48px; line-height: 1; }
+  #easter-egg-title {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 800; font-size: 18px; color: var(--text);
+  }
+  #easter-egg-msg {
+    font-family: 'Inter', sans-serif;
+    font-size: 13px; color: var(--text-muted); line-height: 1.5;
+  }
+  #easter-egg-close {
+    margin-top: 8px;
+    background: var(--accent); color: white; border: none;
+    padding: 10px 24px; border-radius: var(--radius-sm);
+    font-family: 'Inter', sans-serif; font-weight: 600;
+    font-size: 13px; cursor: pointer;
+    box-shadow: 0 2px 8px rgba(59,130,246,0.4);
+    transition: background 0.15s;
+  }
+  #easter-egg-close:hover { background: var(--accent-hover); }
+
+  /* ── EXPORT ── */
+  #export-popup {
+    position: fixed; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    background: white; border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 8px 32px rgba(30,41,59,0.18);
+    padding: 20px 24px; z-index: 2000;
+    display: none; flex-direction: column; gap: 14px;
+    min-width: 260px;
+  }
+  #export-popup.visible { display: flex; }
+  #export-popup-title {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 700; font-size: 15px; color: var(--text);
+  }
+  #export-popup-dims {
+    font-size: 11px; color: var(--text-muted);
+    font-family: 'Inter', sans-serif;
+  }
+  #export-popup-btns {
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  #export-popup-btns button {
+    padding: 9px 16px; border-radius: var(--radius-sm);
+    font-family: 'Inter', sans-serif; font-size: 12px;
+    font-weight: 500; cursor: pointer; transition: all 0.15s;
+    border: 1px solid var(--border-strong);
+    background: white; color: var(--text);
+    box-shadow: var(--shadow-btn);
+  }
+  #export-popup-btns button:hover { background: var(--bg); border-color: var(--accent); }
+  #btn-export-png { background: var(--accent); border-color: var(--accent); color: white; box-shadow: 0 2px 8px rgba(59,130,246,0.35); }
+  #btn-export-png:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+  #btn-export-cancel { color: var(--text-muted); }
+
   /* file:// protocol notice */
   #file-notice {
     position: fixed; bottom: 32px; left: 50%; transform: translateX(-50%);
@@ -710,6 +813,7 @@
     <button class="tb-btn-text" id="btn-recenter" title="Recenter canvas">&#8982; Recenter</button>
     <button class="tb-btn-text" id="btn-undo" title="Undo (Ctrl+Z)" disabled>&#8630; Undo</button>
     <button class="tb-btn-text" id="btn-clear-draw">&#9003; Clear Ink</button>
+    <button class="tb-btn-text" id="btn-export" title="Export current view as PNG or PDF" style="display:none">&#8681; Export</button>
     <button class="tb-btn-text" id="btn-load">&#128194; Load</button>
     <button class="tb-btn-text primary" id="btn-save">&#128190; Save</button>
   </div>
@@ -747,6 +851,17 @@
   <button id="file-notice-close" title="Dismiss">✕</button>
 </div>
 
+<!-- EXPORT POPUP -->
+<div id="export-popup">
+  <div id="export-popup-title">Export</div>
+  <div id="export-popup-dims"></div>
+  <div id="export-popup-btns">
+    <button id="btn-export-png">&#128444; PNG — current view</button>
+    <button id="btn-export-pdf">&#128196; PDF — all workspaces</button>
+    <button id="btn-export-cancel">Cancel</button>
+  </div>
+</div>
+
 <!-- DROP OVERLAY -->
 <div class="drop-overlay" id="drop-overlay">Drop audio or image file here</div>
 
@@ -762,6 +877,60 @@
 // Canvas constants — declared early so all functions can reference them
 const CANVAS_SIZE = 8000;
 const PAN_MARGIN  = 100; // minimum px of canvas visible at each edge (screen-space)
+
+// ── Free version limits ──────────────────────────────────
+function liveFrameCount()    { return document.querySelectorAll('.sb-frame').length; }
+function liveWaveformCount() { return document.querySelectorAll('.waveform-block').length; }
+
+// Easter egg — triggered if someone bypasses the limits via dev tools
+function checkEasterEgg() {
+  if (liveFrameCount() > 10 || liveWaveformCount() > 2) {
+    showEasterEgg();
+  }
+}
+
+function showEasterEgg() {
+  const existing = document.getElementById('easter-egg-modal');
+  if (existing) return;
+  const modal = document.createElement('div');
+  modal.id = 'easter-egg-modal';
+  modal.innerHTML = `
+    <div id="easter-egg-box">
+      <div id="easter-egg-emoji">👀</div>
+      <div id="easter-egg-title">Well, well, well…</div>
+      <div id="easter-egg-msg">It's not nice to snoop in someone's stuff.</div>
+      <button id="easter-egg-close">Fair enough 😅</button>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  document.getElementById('easter-egg-close').addEventListener('click', () => modal.remove());
+}
+
+// Show a friendly limit notice near the button that was blocked
+function showLimitNotice(anchorEl, message) {
+  const existing = document.getElementById('limit-notice');
+  if (existing) existing.remove();
+  const notice = document.createElement('div');
+  notice.id = 'limit-notice';
+  notice.textContent = message;
+  const r = anchorEl.getBoundingClientRect();
+  notice.style.position   = 'fixed';
+  notice.style.top         = (r.bottom + 6) + 'px';
+  notice.style.left        = r.left + 'px';
+  notice.style.background  = '#1e293b';
+  notice.style.color       = '#f1f5f9';
+  notice.style.fontFamily  = 'Inter, sans-serif';
+  notice.style.fontSize    = '11px';
+  notice.style.fontWeight  = '500';
+  notice.style.padding     = '6px 12px';
+  notice.style.borderRadius = '6px';
+  notice.style.boxShadow   = '0 4px 12px rgba(30,41,59,0.2)';
+  notice.style.zIndex      = '9999';
+  notice.style.pointerEvents = 'none';
+  notice.style.whiteSpace  = 'nowrap';
+  document.body.appendChild(notice);
+  setTimeout(() => notice.remove(), 2800);
+}
 
 const state = {
   tool: 'select',      // select | draw | erase | text
@@ -903,7 +1072,12 @@ document.addEventListener('keydown', e => {
   if (e.key === 'e' || e.key === 'E') setTool('erase');
   if (e.key === 's' || e.key === 'S') setTool('shape');
   if (e.key === 't' || e.key === 'T') setTool('text');
-  if (e.key === 'f' || e.key === 'F') addFrame();
+  if (e.key === 'f' || e.key === 'F') {
+    if (liveFrameCount() >= 10) {
+      showLimitNotice(document.getElementById('btn-add-frame'),
+        `Free plan: max 10 frames. Upgrade to Pro for unlimited.`);
+    } else { addFrame(); }
+  }
   if (e.key === 'a' || e.key === 'A') document.getElementById('audio-input').click();
   if (e.key === 'i' || e.key === 'I') document.getElementById('image-input').click();
 });
@@ -1375,6 +1549,8 @@ function makeDraggable(el, handleEl, onDrag) {
   let startX, startY, startL, startT, dragging = false;
   handleEl.addEventListener('mousedown', e => {
     if (e.button !== 0) return;
+    // Respect pinned state
+    if (el.dataset.pinned === 'true') return;
     e.stopPropagation(); e.preventDefault();
     dragging = true;
     startX = e.clientX; startY = e.clientY;
@@ -1391,6 +1567,23 @@ function makeDraggable(el, handleEl, onDrag) {
     const onUp = () => { dragging = false; window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
+  });
+}
+
+// Toggle pin on any pinnable element
+function makePinnable(el, pinBtn) {
+  function updatePinVisual(isPinned) {
+    pinBtn.classList.toggle('pinned', isPinned);
+    pinBtn.title = isPinned ? 'Unpin (unlock position)' : 'Pin (lock position)';
+    el.classList.toggle('pinned-element', isPinned);
+    // Swap icon — ⊙ = unpinned, ⊗ = pinned (both respond to CSS color)
+    pinBtn.textContent = isPinned ? '⊗' : '⊙';
+  }
+  pinBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    const pinned = el.dataset.pinned === 'true';
+    el.dataset.pinned = pinned ? 'false' : 'true';
+    updatePinVisual(!pinned);
   });
 }
 
@@ -1444,6 +1637,7 @@ function addFrame(opts) {
   frame.innerHTML = `
     <div class="sb-frame-header">
       <input class="sb-frame-title" value="${title}" placeholder="Label…" readonly title="Double-click to rename">
+      <button class="sb-frame-btn pin" title="Pin (lock position)">⊙</button>
       <button class="sb-frame-btn del" title="Delete">✕</button>
     </div>
     <div class="sb-frame-body">
@@ -1484,6 +1678,9 @@ function addFrame(opts) {
 
   // Delete
   frame.querySelector('.sb-frame-btn.del').addEventListener('click', () => frame.remove());
+
+  // Pin
+  makePinnable(frame, frame.querySelector('.sb-frame-btn.pin'));
 
   // Right-click on header → edit title
   const titleInput = frame.querySelector('.sb-frame-title');
@@ -1657,7 +1854,15 @@ function setupFrameDrawing(frame) {
   c.addEventListener('pointercancel', () => drawing = false);
 }
 
-document.getElementById('btn-add-frame').addEventListener('click', () => addFrame());
+document.getElementById('btn-add-frame').addEventListener('click', e => {
+  if (liveFrameCount() >= 10) {
+    showLimitNotice(e.currentTarget,
+      `Free plan: max 10 frames. Upgrade to Pro for unlimited.`);
+    return;
+  }
+  addFrame();
+  checkEasterEgg();
+});
 
 // ═══════════════════════════════════════════════════════════
 // TEXT LABELS
@@ -1680,10 +1885,16 @@ function addLabel(x, y, text) {
   del.className = 'lbl-del'; del.textContent = '✕';
   del.addEventListener('click', () => el.remove());
 
+  const pin = document.createElement('button');
+  pin.className = 'pin-btn'; pin.textContent = '⊙';
+  pin.title = 'Pin (lock position)';
+
   el.appendChild(input);
   el.appendChild(del);
+  el.appendChild(pin);
   infiniteCanvas.appendChild(el);
   makeDraggable(el, el);
+  makePinnable(el, pin);
   setTimeout(() => input.focus(), 50);
   return el;
 }
@@ -1710,11 +1921,17 @@ function addCanvasImage(src, x, y) {
   resizeH.className = 'sb-resize';
   resizeH.style.position = 'absolute';
 
+  const pin = document.createElement('button');
+  pin.className = 'pin-btn'; pin.textContent = '⊙';
+  pin.title = 'Pin (lock position)';
+
   el.appendChild(img);
   el.appendChild(del);
+  el.appendChild(pin);
   el.appendChild(resizeH);
   infiniteCanvas.appendChild(el);
   makeDraggable(el, el);
+  makePinnable(el, pin);
 
   // Resize image
   resizeH.addEventListener('mousedown', e => {
@@ -2080,7 +2297,15 @@ function addWaveform(opts) {
 }
 
 // Audio input
-document.getElementById('btn-add-audio').addEventListener('click', () => document.getElementById('audio-input').click());
+document.getElementById('btn-add-audio').addEventListener('click', e => {
+  if (liveWaveformCount() >= 2) {
+    showLimitNotice(e.currentTarget,
+      `Free plan: max 2 audio tracks. Upgrade to Pro for unlimited.`);
+    return;
+  }
+  document.getElementById('audio-input').click();
+  setTimeout(checkEasterEgg, 500);
+});
 document.getElementById('audio-input').addEventListener('change', e => {
   const file = e.target.files[0]; if (!file) return;
   const pos = toCanvas(window.innerWidth / 2, (window.innerHeight - 84) * 0.6);
@@ -2171,7 +2396,7 @@ function saveProject() {
       x: parseFloat(frame.style.left), y: parseFloat(frame.style.top),
       w: frame.offsetWidth, h: frame.offsetHeight,
       title, activeTab, textContent,
-      imgSrc,
+      imgSrc, pinned: frame.dataset.pinned === 'true',
       drawData: drawC ? drawC.toDataURL() : null,
     });
   });
@@ -2232,6 +2457,17 @@ function loadProject(proj) {
 
   (proj.frames || []).forEach(f => {
     const frame = addFrame(f);
+    // Restore pin state
+    if (f.pinned) {
+      frame.dataset.pinned = 'true';
+      const pinBtn = frame.querySelector('.sb-frame-btn.pin');
+      if (pinBtn) {
+        pinBtn.classList.add('pinned');
+        pinBtn.textContent = '⊗';
+        pinBtn.title = 'Unpin (unlock position)';
+      }
+      frame.classList.add('pinned-element');
+    }
     // Restore draw canvas
     if (f.drawData) {
       const dc = frame.querySelector('.sb-draw-canvas');
@@ -2678,6 +2914,137 @@ window.addEventListener('load', () => {
   renderTabs();
 });
 
+// ═══════════════════════════════════════════════════════════
+// EXPORT — current viewport as PNG or PDF
+// ═══════════════════════════════════════════════════════════
+
+const exportPopup = document.getElementById('export-popup');
+const exportDims  = document.getElementById('export-popup-dims');
+
+// Export is not available in the free version — button stays hidden.
+// The pro version is hosted separately and includes export functionality.
+
+document.getElementById('btn-export-cancel').addEventListener('click', () => {
+  exportPopup.classList.remove('visible');
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') exportPopup.classList.remove('visible');
+});
+
+// ── Capture current view using html2canvas ──
+async function captureCurrentView() {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight - TOOLBAR_H - 26;
+
+  exportDims.textContent = 'Capturing…';
+
+  const raw = await html2canvas(container, {
+    x: 0, y: 0,
+    width:  vw,
+    height: vh,
+    scrollX: 0, scrollY: 0,
+    backgroundColor: '#ffffff',
+    scale: window.devicePixelRatio || 1,
+    useCORS: true,
+    logging: false,
+    ignoreElements: el =>
+      el.id === 'export-popup' ||
+      el.id === 'stroke-overlay',
+  });
+  return raw;
+}
+
+// ── Capture a specific workspace at the current scroll/zoom view ──
+async function captureWorkspaceView(ws) {
+  // Save current state
+  const savedIdx     = activeWsIdx;
+  const savedScrollL = container.scrollLeft;
+  const savedScrollT = container.scrollTop;
+  const savedZoom    = state.zoom;
+
+  // Snapshot current workspace before switching
+  captureWorkspace(workspaces[savedIdx]);
+
+  // Switch to target workspace
+  restoreWorkspace(ws);
+  // Use same zoom + scroll as the current view
+  state.zoom = savedZoom;
+  applyTransform();
+  container.scrollLeft = savedScrollL;
+  container.scrollTop  = savedScrollT;
+
+  await new Promise(r => setTimeout(r, 80));
+
+  const canvas = await captureCurrentView();
+
+  // Restore original workspace and view
+  restoreWorkspace(workspaces[savedIdx]);
+  state.zoom = savedZoom;
+  applyTransform();
+  container.scrollLeft = savedScrollL;
+  container.scrollTop  = savedScrollT;
+
+  await new Promise(r => setTimeout(r, 40));
+  return canvas;
+}
+
+// ── PNG — current workspace, current view ──
+document.getElementById('btn-export-png').addEventListener('click', async () => {
+  exportPopup.classList.remove('visible');
+  captureWorkspace(workspaces[activeWsIdx]);
+
+  try {
+    const canvas = await captureCurrentView();
+    canvas.toBlob(blob => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${workspaces[activeWsIdx].name || 'musicboard'}.png`;
+      a.click();
+    }, 'image/png');
+  } catch(err) {
+    console.error('PNG export failed:', err);
+    alert('Export failed — check the console for details.');
+  }
+});
+
+// ── PDF — each workspace as a page, same view ──
+document.getElementById('btn-export-pdf').addEventListener('click', async () => {
+  exportPopup.classList.remove('visible');
+  captureWorkspace(workspaces[activeWsIdx]);
+
+  const { jsPDF } = window.jspdf;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight - TOOLBAR_H - 26;
+  const mmW = vw * 0.264583;
+  const mmH = vh * 0.264583;
+
+  const pdf = new jsPDF({
+    orientation: vw > vh ? 'landscape' : 'portrait',
+    unit: 'mm',
+    format: [mmW, mmH],
+  });
+
+  try {
+    for (let i = 0; i < workspaces.length; i++) {
+      exportDims.textContent = `Capturing ${i+1} of ${workspaces.length}…`;
+      if (i > 0) pdf.addPage([mmW, mmH], vw > vh ? 'landscape' : 'portrait');
+      const canvas = await captureWorkspaceView(workspaces[i]);
+      const imgData = canvas.toDataURL('image/jpeg', 0.92);
+      pdf.addImage(imgData, 'JPEG', 0, 0, mmW, mmH);
+      pdf.setFontSize(7);
+      pdf.setTextColor(150);
+      pdf.text(workspaces[i].name || `Workspace ${i+1}`, mmW/2, mmH - 2, { align: 'center' });
+    }
+    pdf.save('musicboard-export.pdf');
+  } catch(err) {
+    console.error('PDF export failed:', err);
+    alert('Export failed — check the console for details.');
+  }
+});
+
+// ═══════════════════════════════════════════════════════════
+// PWA — register service worker (only on real HTTP/S origins)
 // ═══════════════════════════════════════════════════════════
 // PWA — register service worker (only on real HTTP/S origins)
 // ═══════════════════════════════════════════════════════════
