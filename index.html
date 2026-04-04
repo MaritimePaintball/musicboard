@@ -1113,27 +1113,54 @@ window.addEventListener('mousemove', e => {
   document.getElementById('status-pos').textContent = `${Math.round(pos.x)}, ${Math.round(pos.y)}`;
 });
 
-// Scroll wheel zooms toward the mouse cursor position
+// Wheel handler — separates trackpad scroll from zoom gestures.
+//
+// Browser behaviour:
+//   Trackpad two-finger scroll  → wheel event, ctrlKey=false, deltaX and/or deltaY set
+//   Trackpad pinch-to-zoom      → wheel event, ctrlKey=true (synthetic), small deltaY
+//   Mouse wheel scroll          → wheel event, ctrlKey=false, deltaX=0, deltaY set
+//   Ctrl + mouse wheel          → wheel event, ctrlKey=true, larger deltaY
+//
+// Rule: only zoom when ctrlKey is true. Everything else is a scroll — let
+// the browser handle it natively so two-finger trackpad pan works correctly.
 container.addEventListener('wheel', e => {
-  if (!e.ctrlKey && e.deltaX === 0) {
-    // Plain scroll — let browser handle it natively (scrolls the container)
+  if (!e.ctrlKey) {
+    // Trackpad two-finger pan — manually apply both axes simultaneously
+    // to bypass the browser's built-in scroll axis locking behaviour.
+    e.preventDefault();
+    container.scrollLeft += e.deltaX;
+    container.scrollTop  += e.deltaY;
+    _tx = -container.scrollLeft / state.zoom;
+    _ty = -container.scrollTop  / state.zoom;
     return;
   }
+
+  // Zoom gesture — prevent browser's own pinch-zoom taking over
   e.preventDefault();
-  const delta = e.deltaY > 0 ? 0.9 : 1.1;
-  const newZoom = Math.max(getMinZoom(), Math.min(4, state.zoom * delta));
+
+  // Use proportional delta for smooth trackpad pinch, capped for mouse wheel.
+  // Trackpad sends many small events; mouse wheel sends fewer large ones.
+  // Normalise so both feel responsive but not jumpy.
+  const rawDelta = e.deltaY;
+  let zoomFactor;
+  if (e.deltaMode === 0) {
+    // Pixel mode (trackpad) — deltaY is small, use proportional scaling
+    zoomFactor = 1 - Math.min(Math.max(rawDelta * 0.005, -0.15), 0.15);
+  } else {
+    // Line/page mode (mouse wheel) — use fixed step
+    zoomFactor = rawDelta > 0 ? 0.9 : 1.1;
+  }
+
+  const newZoom = Math.max(getMinZoom(), Math.min(4, state.zoom * zoomFactor));
   if (newZoom === state.zoom) return;
 
-  // Keep the canvas point under the mouse cursor stationary while zooming
-  // mouseCanvasX = (clientX + scrollLeft) / oldZoom
-  // After zoom: newScrollLeft = mouseCanvasX * newZoom - clientX
+  // Keep the canvas point under the cursor stationary while zooming
   const mouseCanvasX = (e.clientX + container.scrollLeft) / state.zoom;
   const mouseCanvasY = (e.clientY - 52 + container.scrollTop) / state.zoom;
   state.zoom = newZoom;
   applyTransform();
   container.scrollLeft = mouseCanvasX * newZoom - e.clientX;
   container.scrollTop  = mouseCanvasY * newZoom - (e.clientY - 52);
-  // Re-sync cache after scroll adjustment
   _tx = -container.scrollLeft / state.zoom;
   _ty = -container.scrollTop  / state.zoom;
 }, { passive: false });
