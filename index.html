@@ -954,6 +954,7 @@
   <div class="status-item">ZOOM: <span id="status-zoom">100%</span></div>
   <div class="status-item">POS: <span id="status-pos">0, 0</span></div>
   <div class="status-item" id="status-audio-info">AUDIO: <span>none</span></div>
+  <div class="status-item" style="margin-left:auto;">&#128190; <span id="autosave-status">Auto-save on</span></div>
 </div>
 
 <!-- FILE:// PROTOCOL NOTICE -->
@@ -1389,6 +1390,7 @@ function undoLast() {
   if (undoStack.length > MAX_UNDO) undoStack.shift(); // keep max 5
   redrawAllStrokes();
   updateUndoButton();
+  touchAutoSave();
 }
 
 // Redraw all committed strokes onto drawCanvas from vector data
@@ -1550,6 +1552,7 @@ function commitStroke(isErase) {
   }
   updateUndoButton();
   activePoints = [];
+  touchAutoSave();
 }
 
 // ── Overlay activate / deactivate ────────────────────────────
@@ -1703,6 +1706,7 @@ document.getElementById('btn-clear-draw').addEventListener('click', () => {
   ctx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
   octx.clearRect(0, 0, overlay.width, overlay.height);
   updateUndoButton();
+  touchAutoSave();
 });
 
 document.getElementById('btn-undo').addEventListener('click', undoLast);
@@ -2108,6 +2112,7 @@ document.getElementById('btn-add-frame').addEventListener('click', e => {
   }
   addFrame();
   checkEasterEgg();
+  touchAutoSave();
 });
 
 // ═══════════════════════════════════════════════════════════
@@ -2377,10 +2382,11 @@ function addWaveform(opts) {
       <span class="waveform-title">${filename}</span>
       <button class="waveform-ctrl" id="wc-play-${id}" title="Play/Pause">▶</button>
       <button class="waveform-ctrl" id="wc-stop-${id}" title="Stop">■</button>
-      <div class="waveform-vol-wrap">
+      <div class="waveform-vol-wrap" id="wc-vol-wrap-${id}">
         <button class="waveform-vol-btn" id="wc-mute-${id}" title="Mute">🔊</button>
         <input class="waveform-vol-slider" id="wc-vol-${id}" type="range" min="0" max="1" step="0.01" value="1" title="Volume">
       </div>
+      <button class="waveform-ctrl" id="wc-compact-${id}" title="Toggle compact mode">⊖</button>
       <button class="waveform-ctrl" id="wc-pin-${id}" title="Pin (lock position)">⊙</button>
       <button class="waveform-ctrl" id="wc-del-${id}" title="Remove">✕</button>
     </div>
@@ -2578,6 +2584,21 @@ function addWaveform(opts) {
   volSlider.addEventListener('mousedown', e => e.stopPropagation());
   muteBtn.addEventListener('click', () => { wState.muted = !wState.muted; applyVolume(); });
 
+  // ── Compact toggle ────────────────────────────────────────────
+  const compactBtn = block.querySelector(`#wc-compact-${id}`);
+  const volWrap    = block.querySelector(`#wc-vol-wrap-${id}`);
+  const titleEl    = block.querySelector('.waveform-title');
+  let   isCompact  = false;
+
+  compactBtn.addEventListener('click', () => {
+    isCompact = !isCompact;
+    // Hide: filename, volume slider+mute
+    titleEl.style.display  = isCompact ? 'none' : '';
+    volWrap.style.display  = isCompact ? 'none' : '';
+    compactBtn.textContent = isCompact ? '⊕' : '⊖';
+    compactBtn.title       = isCompact ? 'Expand controls' : 'Toggle compact mode';
+  });
+
   // ── Lock ──────────────────────────────────────────────────────
   // Use the unified pin system — pin button drops z-index below draw canvas
   const pinBtn = block.querySelector(`#wc-pin-${id}`);
@@ -2644,8 +2665,9 @@ function addWaveform(opts) {
 
   // Bottom edge — drag to change height
   const resizeB = block.querySelector(`#wc-rb-${id}`);
-  resizeB.addEventListener('mousedown', e => {
+  resizeB.addEventListener('pointerdown', e => {
     e.stopPropagation(); e.preventDefault();
+    resizeB.setPointerCapture(e.pointerId);
     const startY = e.clientY;
     const startH = block.offsetHeight;
     const onMove = ev => {
@@ -2653,9 +2675,12 @@ function addWaveform(opts) {
       block.style.height = Math.max(60, startH + dy) + 'px';
       renderWaveform();
     };
-    const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
   });
 
   // ── Drag ──────────────────────────────────────────────────────
@@ -2737,7 +2762,13 @@ document.getElementById('btn-load').addEventListener('click', () => document.get
 document.getElementById('project-input').addEventListener('change', e => {
   const file = e.target.files[0]; if (!file) return;
   const reader = new FileReader();
-  reader.onload = ev => { try { loadProject(JSON.parse(ev.target.result)); } catch(err) { alert('Could not load project file.'); } };
+  reader.onload = ev => {
+    try {
+      loadProject(JSON.parse(ev.target.result));
+      clearAutoSave(); // reset so loaded file becomes the new baseline
+      touchAutoSave();
+    } catch(err) { alert('Could not load project file.'); }
+  };
   reader.readAsText(file);
   e.target.value = '';
 });
@@ -3178,6 +3209,7 @@ function switchWorkspace(idx) {
   activeWsIdx = idx;
   restoreWorkspace(workspaces[activeWsIdx]);
   renderTabs();
+  touchAutoSave();
 }
 
 // ── Add workspace ──────────────────────────────────────────
@@ -3265,6 +3297,89 @@ function loadProject(proj) {
 }
 
 // ═══════════════════════════════════════════════════════════
+// AUTO-SAVE — localStorage crash protection
+// ═══════════════════════════════════════════════════════════
+const AUTOSAVE_KEY     = 'musicboard_autosave';
+const AUTOSAVE_DELAY   = 5000; // ms after last change before saving
+let   autoSaveTimer    = null;
+let   autoSaveEnabled  = true;
+
+// Build the project snapshot (same shape as saveProject)
+function buildProjectSnapshot() {
+  captureWorkspace(workspaces[activeWsIdx]);
+  return {
+    version: 2,
+    activeWs: activeWsIdx,
+    autoSave: true,
+    savedAt: Date.now(),
+    workspaces: workspaces.map(ws => ({
+      name: ws.name,
+      zoom: ws.zoom,
+      scrollLeft: ws.scrollLeft,
+      scrollTop: ws.scrollTop,
+      strokeHistory: ws.strokeHistory,
+      frames: ws.frames,
+      labels: ws.labels,
+      images: ws.images,
+      waveforms: ws.waveforms,
+    })),
+  };
+}
+
+function autoSaveNow() {
+  if (!autoSaveEnabled) return;
+  try {
+    const snapshot = JSON.stringify(buildProjectSnapshot());
+    localStorage.setItem(AUTOSAVE_KEY, snapshot);
+    updateAutoSaveStatus('Saved');
+  } catch(e) {
+    // localStorage may be full or unavailable — fail silently
+    updateAutoSaveStatus('⚠ Save failed');
+  }
+}
+
+function scheduleAutoSave() {
+  clearTimeout(autoSaveTimer);
+  autoSaveTimer = setTimeout(autoSaveNow, AUTOSAVE_KEY ? AUTOSAVE_DELAY : 0);
+}
+
+function clearAutoSave() {
+  localStorage.removeItem(AUTOSAVE_KEY);
+}
+
+function hasAutoSave() {
+  try { return !!localStorage.getItem(AUTOSAVE_KEY); } catch(e) { return false; }
+}
+
+function loadAutoSave() {
+  try {
+    const raw = localStorage.getItem(AUTOSAVE_KEY);
+    if (!raw) return false;
+    const proj = JSON.parse(raw);
+    loadProject(proj);
+    updateAutoSaveStatus('Session restored');
+    return true;
+  } catch(e) {
+    return false;
+  }
+}
+
+// Update status bar with auto-save state
+function updateAutoSaveStatus(msg) {
+  const el = document.getElementById('autosave-status');
+  if (!el) return;
+  el.textContent = msg;
+  // Fade the "Saved" message after 3s
+  clearTimeout(el._fadeTimer);
+  if (msg === 'Saved') {
+    el._fadeTimer = setTimeout(() => { el.textContent = 'Auto-save on'; }, 3000);
+  }
+}
+
+// Hook into all state-changing actions
+function touchAutoSave() { scheduleAutoSave(); }
+
+// ═══════════════════════════════════════════════════════════
 // WELCOME: add one sample frame to get started
 // ═══════════════════════════════════════════════════════════
 window.addEventListener('load', () => {
@@ -3284,7 +3399,17 @@ window.addEventListener('load', () => {
   container.scrollLeft = CANVAS_CENTRE * state.zoom - vw / 2;
   container.scrollTop  = CANVAS_CENTRE * state.zoom - vh / 2;
 
-  // Place welcome frames near the canvas centre
+  // ── Restore auto-saved session or show welcome ──
+  if (hasAutoSave()) {
+    const restored = loadAutoSave();
+    if (restored) {
+      // Session restored — start auto-saving future changes
+      scheduleAutoSave();
+      return;
+    }
+  }
+
+  // No saved session — show welcome frames
   const fx = CANVAS_CENTRE - 420;
   const fy = CANVAS_CENTRE - 180;
 
