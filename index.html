@@ -620,24 +620,82 @@
 
   /* ── CANVAS TEXT LABELS ── */
   .canvas-label {
-    position: absolute; z-index: 35; cursor: move;
-    min-width: 80px; min-height: 24px;
+    position: absolute; z-index: 35;
+    min-width: 80px; min-height: 28px;
+    /* No chrome at rest — just text on canvas */
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--radius);
   }
+  .canvas-label:hover, .canvas-label.active {
+    background: rgba(255,255,255,0.85);
+    border-color: var(--border);
+    box-shadow: var(--shadow-sm);
+  }
+  /* Header floats ABOVE the label so it never shifts the text */
+  .canvas-label-header {
+    display: none;
+    align-items: center;
+    position: absolute;
+    top: -26px; left: -1px; right: -1px;
+    height: 24px; padding: 0 4px;
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    border-bottom: none;
+    border-radius: var(--radius) var(--radius) 0 0;
+    gap: 4px;
+    box-shadow: 0 -2px 6px rgba(30,41,59,0.06);
+  }
+  .canvas-label:hover .canvas-label-header,
+  .canvas-label.active .canvas-label-header {
+    display: flex;
+  }
+  .canvas-label-drag {
+    flex: 1; cursor: move; height: 100%;
+    display: flex; align-items: center;
+    color: var(--border-strong); font-size: 11px;
+    letter-spacing: 2px; user-select: none;
+    padding-left: 2px;
+  }
+  .canvas-label-drag::before { content: '⠿'; }
+  .lbl-pin {
+    background: none; border: none; cursor: pointer;
+    color: var(--text-muted); font-size: 12px;
+    padding: 1px 3px; border-radius: 4px;
+    line-height: 1; transition: all 0.12s;
+  }
+  .lbl-pin:hover { color: var(--accent); background: var(--bg); }
+  .lbl-pin.pinned { color: white; background: var(--accent); }
+  .lbl-del {
+    background: none; border: none; cursor: pointer;
+    color: var(--text-muted); font-size: 11px;
+    padding: 1px 3px; border-radius: 4px;
+    line-height: 1; transition: all 0.12s;
+  }
+  .lbl-del:hover { background: rgba(239,68,68,0.1); color: #ef4444; }
   .canvas-label-input {
     background: transparent; border: none; outline: none;
     font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 500;
-    color: var(--text); width: 100%;
-    cursor: text;
+    color: var(--text); width: 100%; height: 100%;
+    cursor: text; padding: 4px 6px;
+    display: block;
   }
-  .canvas-label:hover .canvas-label-input { background: rgba(255,255,255,0.5); border-radius: 2px; }
-  .canvas-label .lbl-del {
-    position: absolute; top: -8px; right: -8px;
-    background: var(--accent); color: #fff; border: none;
-    width: 16px; height: 16px; border-radius: 50%;
-    font-size: 10px; cursor: pointer; display: none;
-    align-items: center; justify-content: center;
+  /* Resize handle: only visible on hover/active */
+  .canvas-label .sb-resize {
+    position: absolute; bottom: 0; right: 0;
+    width: 18px; height: 18px; cursor: se-resize; z-index: 2;
+    opacity: 0; transition: opacity 0.15s;
   }
-  .canvas-label:hover .lbl-del { display: flex; }
+  .canvas-label:hover .sb-resize,
+  .canvas-label.active .sb-resize { opacity: 1; }
+  .canvas-label .sb-resize::after {
+    content: '';
+    position: absolute; bottom: 4px; right: 4px;
+    width: 7px; height: 7px;
+    border-right: 2px solid var(--border-strong);
+    border-bottom: 2px solid var(--border-strong);
+    border-radius: 1px;
+  }
 
   /* ── TEXT FORMAT POPUP ── */
   #text-format-popup {
@@ -1703,13 +1761,13 @@ function makePinnable(el, pinBtn) {
     pinBtn.title = isPinned ? 'Unpin (unlock position)' : 'Pin (lock position)';
     el.classList.toggle('pinned-element', isPinned);
     pinBtn.textContent = isPinned ? '⊗' : '⊙';
-    // Pinned: drop below draw-canvas (z-index 5) so ink draws on top.
-    // Unpinned: restore natural z-index so element floats above ink.
     el.style.zIndex = isPinned ? '3' : getNaturalZ();
-    // For waveform pin buttons, also update the border highlight
     if (el.classList.contains('waveform-block')) {
       el.dataset.pinned = isPinned ? 'true' : 'false';
     }
+    // Update drag handle cursor when pinned
+    const dh = el.querySelector('.canvas-label-drag');
+    if (dh) dh.style.cursor = isPinned ? 'default' : 'move';
   }
 
   pinBtn.addEventListener('click', e => {
@@ -2054,6 +2112,27 @@ function addLabel(x, y, text, opts) {
   el.style.left = x + 'px';
   el.style.top  = y + 'px';
 
+  // ── Header bar (drag handle + pin + delete) ──
+  const header = document.createElement('div');
+  header.className = 'canvas-label-header';
+
+  const dragHandle = document.createElement('div');
+  dragHandle.className = 'canvas-label-drag';
+  dragHandle.title = 'Drag to move';
+
+  const pin = document.createElement('button');
+  pin.className = 'lbl-pin'; pin.textContent = '⊙';
+  pin.title = 'Pin (lock position)';
+
+  const del = document.createElement('button');
+  del.className = 'lbl-del'; del.textContent = '✕';
+  del.addEventListener('click', () => el.remove());
+
+  header.appendChild(dragHandle);
+  header.appendChild(pin);
+  header.appendChild(del);
+
+  // ── Text input ──
   const input = document.createElement('input');
   input.className = 'canvas-label-input';
   input.value = text || '';
@@ -2066,25 +2145,46 @@ function addLabel(x, y, text, opts) {
   if (opts?.color) input.style.color      = opts.color;
 
   input.addEventListener('mousedown', e => e.stopPropagation());
+  input.addEventListener('click', () => {
+    el.classList.add('active');
+    showTextFormatPopup(input, el);
+  });
 
-  // Show format popup when label is focused
-  // Show popup on click, not focus — avoids all blur/focus race conditions
-  input.addEventListener('click', () => showTextFormatPopup(input, el));
+  const resizeHandle = document.createElement('div');
+  resizeHandle.className = 'sb-resize';
 
-  const del = document.createElement('button');
-  del.className = 'lbl-del'; del.textContent = '✕';
-  del.addEventListener('click', () => el.remove());
-
-  const pin = document.createElement('button');
-  pin.className = 'pin-btn'; pin.textContent = '⊙';
-  pin.title = 'Pin (lock position)';
-
+  el.appendChild(header);
   el.appendChild(input);
-  el.appendChild(del);
-  el.appendChild(pin);
+  el.appendChild(resizeHandle);
   infiniteCanvas.appendChild(el);
-  makeDraggable(el, el);
+
+  // Drag by header handle only
+  makeDraggable(el, dragHandle);
+
+  // Pin
   makePinnable(el, pin);
+
+  // Resize — drag bottom-right corner
+  resizeHandle.addEventListener('mousedown', e => {
+    if (el.dataset.pinned === 'true') return;
+    e.stopPropagation(); e.preventDefault();
+    const startX = e.clientX, startY = e.clientY;
+    const startW = el.offsetWidth, startH = el.offsetHeight;
+    const onMove = ev => {
+      const dw = (ev.clientX - startX) / state.zoom;
+      const dh = (ev.clientY - startY) / state.zoom;
+      el.style.width  = Math.max(120, startW + dw) + 'px';
+      el.style.height = Math.max(48,  startH + dh) + 'px';
+      input.style.width = '100%';
+    };
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  });
+
   setTimeout(() => input.focus(), 50);
   return el;
 }
@@ -2226,8 +2326,12 @@ tfFont.addEventListener('change', applyTextFormat);
 tfSize.addEventListener('change', applyTextFormat);
 tfColor.addEventListener('input',  applyTextFormat);
 
-// Hide popup only when clicking outside both the popup and any label input
+// Hide popup and deactivate labels when clicking outside
 document.addEventListener('pointerdown', e => {
+  // Deactivate all labels unless clicking inside one
+  if (!e.target.closest('.canvas-label')) {
+    document.querySelectorAll('.canvas-label.active').forEach(l => l.classList.remove('active'));
+  }
   if (!tfPopup.classList.contains('visible')) return;
   if (tfPopup.contains(e.target)) return;
   if (e.target.classList.contains('canvas-label-input')) return;
