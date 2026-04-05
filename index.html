@@ -1639,7 +1639,7 @@ window.addEventListener('pointerdown', e => {
   if (e.button === 1) return;
   // Accept mouse (button 0) and pen (any button) — reject other mouse buttons
   if (e.pointerType === 'mouse' && e.button !== 0) return;
-  if (e.target.closest('.sb-frame, .waveform-block, #toolbar, #tab-bar')) return;
+  if (e.target.closest('.sb-frame, .waveform-block, .canvas-image, .canvas-label, #toolbar, #tab-bar')) return;
 
   // Prevent browser from treating pen input as a scroll/pan/drag gesture
   e.preventDefault();
@@ -1722,11 +1722,15 @@ document.addEventListener('keydown', e => {
 // ═══════════════════════════════════════════════════════════
 function makeDraggable(el, handleEl, onDrag) {
   let startX, startY, startL, startT, dragging = false;
-  handleEl.addEventListener('mousedown', e => {
-    if (e.button !== 0) return;
+  handleEl.addEventListener('pointerdown', e => {
+    // Accept left mouse button or any pen/touch contact
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
     // Respect pinned state
     if (el.dataset.pinned === 'true') return;
+    // Don't block clicks on buttons or inputs inside the handle
+    if (e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT') return;
     e.stopPropagation(); e.preventDefault();
+    handleEl.setPointerCapture(e.pointerId);
     dragging = true;
     startX = e.clientX; startY = e.clientY;
     startL = parseInt(el.style.left) || 0;
@@ -1739,9 +1743,13 @@ function makeDraggable(el, handleEl, onDrag) {
       el.style.top  = (startT + dy) + 'px';
       if (onDrag) onDrag();
     };
-    const onUp = () => { dragging = false; window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
+    const onUp = () => {
+      dragging = false;
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
   });
 }
 
@@ -2608,9 +2616,10 @@ function addWaveform(opts) {
   // Stretching changes the visual scale (pxPerSec) which changes how much
   // of the song is visible. Playhead is immediately repositioned.
   function makeResizeHandle(handleEl, side) {
-    handleEl.addEventListener('mousedown', e => {
+    handleEl.addEventListener('pointerdown', e => {
       if (block.dataset.pinned === 'true') return;
       e.stopPropagation(); e.preventDefault();
+      handleEl.setPointerCapture(e.pointerId);
       const startX  = e.clientX;
       const startW  = parseFloat(block.style.width) || block.offsetWidth;
       const startL  = parseFloat(block.style.left)  || 0;
@@ -2623,11 +2632,11 @@ function addWaveform(opts) {
           block.style.left  = (startL + startW - newW) + 'px';
           block.style.width = newW + 'px';
         }
-        renderWaveform(); // redraws ruler + repositions playhead
+        renderWaveform();
       };
-      const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
-      window.addEventListener('mousemove', onMove);
-      window.addEventListener('mouseup', onUp);
+      const onUp = () => { window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); };
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
     });
   }
   makeResizeHandle(block.querySelector(`#wc-rl-${id}`), 'l');
