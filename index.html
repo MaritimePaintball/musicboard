@@ -424,6 +424,75 @@
     border-radius: 4px; background: var(--border-strong);
   }
 
+  /* ── Waveform controller panel (floating, above ink) ── */
+  .wf-controller {
+    position: absolute;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    display: none;
+    flex-direction: column;
+    /* z-index above everything — pen must reach this */
+    z-index: 9999;
+    overflow: visible;
+    pointer-events: all !important;
+    user-select: none;
+    touch-action: manipulation;
+  }
+  .wf-controller.visible { display: flex; }
+  .wf-ctrl-drag {
+    background: var(--panel2);
+    border-bottom: 1px solid var(--border);
+    height: 22px;
+    display: flex; align-items: center;
+    padding: 0 8px; gap: 4px;
+    cursor: move; flex-shrink: 0;
+    border-radius: var(--radius) var(--radius) 0 0;
+  }
+  .wf-ctrl-drag-dots {
+    flex: 1; color: var(--border-strong); font-size: 11px; letter-spacing: 2px;
+  }
+  .wf-ctrl-drag-dots::before { content: '⠿'; }
+  .wf-icon-btn {
+    background: none; border: none; cursor: pointer;
+    color: var(--text-muted); font-size: 18px;
+    width: 32px; height: 32px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: var(--radius-sm); line-height: 1;
+    transition: color 0.12s, background 0.12s;
+    touch-action: manipulation; flex-shrink: 0;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .wf-icon-btn:hover  { color: var(--accent); background: var(--bg); }
+  .wf-icon-btn.active { color: var(--accent); }
+  .wf-icon-btn.muted  { color: #ef4444; }
+  .wf-icon-btn.play   { color: var(--accent); font-size: 20px; }
+  .wf-ctrl-body {
+    padding: 4px 8px 6px;
+    display: flex; align-items: center; gap: 2px;
+  }
+  .wf-ctrl-sep {
+    width: 1px; height: 18px; background: var(--border);
+    margin: 0 4px; flex-shrink: 0;
+  }
+  .wf-vol-slider {
+    width: 60px; -webkit-appearance: none; appearance: none;
+    height: 3px; border-radius: 8px;
+    background: var(--border); outline: none; cursor: pointer;
+    accent-color: var(--accent); flex-shrink: 0;
+  }
+  .wf-vol-slider::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 12px; height: 12px;
+    border-radius: 50%; background: var(--accent);
+    border: 2px solid white; box-shadow: var(--shadow-btn);
+  }
+  .wf-vol-slider::-moz-range-thumb {
+    width: 12px; height: 12px; border-radius: 50%;
+    background: var(--accent); border: 2px solid white;
+  }
+
+
   /* ── STORYBOARD FRAMES ── */
   .sb-frame {
     position: absolute;
@@ -908,6 +977,11 @@
   <div id="brush-size-wrap">
     <label>SIZE</label>
     <input type="range" id="brush-size" min="1" max="40" value="3">
+    <input type="number" id="brush-size-num" min="1" max="40" value="3"
+      style="width:42px;padding:3px 5px;border:1px solid var(--border-strong);
+      border-radius:var(--radius-sm);font-family:'Inter',sans-serif;font-size:11px;
+      color:var(--text);background:white;box-shadow:var(--shadow-btn);
+      -moz-appearance:textfield;text-align:center;">
   </div>
 
   <div id="pressure-wrap">
@@ -1187,7 +1261,18 @@ function setTool(t) {
 Object.entries(toolBtns).forEach(([t, btn]) => btn.addEventListener('click', () => setTool(t)));
 
 document.getElementById('stroke-color').addEventListener('input', e => { state.strokeColor = e.target.value; });
-document.getElementById('brush-size').addEventListener('input', e => { state.brushSize = +e.target.value; });
+document.getElementById('brush-size').addEventListener('input', e => {
+  state.brushSize = +e.target.value;
+  document.getElementById('brush-size-num').value = e.target.value;
+});
+document.getElementById('brush-size-num').addEventListener('input', e => {
+  const v = Math.min(40, Math.max(1, parseInt(e.target.value) || 1));
+  state.brushSize = v;
+  document.getElementById('brush-size').value = v;
+  e.target.value = v;
+});
+// Prevent keyboard shortcuts firing while typing in the number field
+document.getElementById('brush-size-num').addEventListener('keydown', e => e.stopPropagation());
 
 // Pressure sensitivity toggle
 state.pressureEnabled = false;
@@ -1489,7 +1574,18 @@ let activeIsErase = false;
 // because quadratic Bézier needs all prior points to look right.
 function renderOverlayStroke() {
   octx.clearRect(0, 0, overlay.width, overlay.height);
-  if (activePoints.length < 2) return;
+  if (activePoints.length < 1) return;
+  // Single point — render as a dot
+  if (activePoints.length === 1) {
+    const c = screenToCanvas(activePoints[0].sx, activePoints[0].sy);
+    const sx = c.x * state.zoom - container.scrollLeft;
+    const sy = c.y * state.zoom - container.scrollTop;
+    octx.beginPath();
+    octx.arc(sx, sy, activePoints[0].w / 2, 0, Math.PI * 2);
+    octx.fillStyle = activePoints[0].color;
+    octx.fill();
+    return;
+  }
 
   // Convert each screen point → canvas space → back to overlay screen space.
   // This uses the exact same math as screenToCanvas + canvasToScreen so the
@@ -1537,8 +1633,16 @@ function scheduleOverlayRender() {
 // paint onto drawCanvas incrementally (no full redraw needed), clear overlay.
 function commitStroke(isErase) {
   octx.clearRect(0, 0, overlay.width, overlay.height);
-  if (activePoints.length < 2) { activePoints = []; return; }
-  const canvasPoints = activePoints.map(p => {
+  // Freeze snapshot disabled for testing — always use activePoints directly
+  const pts = activePoints;
+
+  if (pts.length < 1) { activePoints = []; frozenPoints = null; return; }
+
+  // Single point — duplicate it so the quadratic curve renderer draws a dot
+  if (pts.length === 1) {
+    pts.push({ ...pts[0], sx: pts[0].sx + 0.1, sy: pts[0].sy + 0.1 });
+  }
+  const canvasPoints = pts.map(p => {
     const c = screenToCanvas(p.sx, p.sy);
     return { x: c.x, y: c.y, w: p.w / _tz };
   });
@@ -1552,6 +1656,7 @@ function commitStroke(isErase) {
   }
   updateUndoButton();
   activePoints = [];
+  frozenPoints  = null;
   touchAutoSave();
 }
 
@@ -1637,14 +1742,51 @@ function commitShape(sx1, sy1, sx2, sy2) {
 }
 
 // ── Pointer events ───────────────────────────────────────────
+// ── Pen input helpers ────────────────────────────────────────
+// Calculate point width from pressure
+function pointWidth(e, isErase) {
+  // Use pressure > 0.01 to avoid the near-zero values some tablets report
+  // on initial contact before pressure fully registers
+  // Use a very low threshold — quick taps often have lower initial pressure
+  const pressure = (state.pressureEnabled && e.pressure > 0.005) ? e.pressure : 0.5;
+  return isErase
+    ? state.brushSize * 6
+    : Math.max(1, state.brushSize * (state.pressureEnabled ? pressure * 2 : 1));
+}
+
+let frozenPoints = null; // snapshot of activePoints at last known pen-down frame
+
+function startStroke(e, isErase) {
+  activeIsErase = isErase;
+  overlayActivate();
+  state.isDrawing = true;
+  activePoints = [];
+  frozenPoints  = null;
+  const pt = {
+    sx: e.clientX, sy: e.clientY,
+    w: pointWidth(e, isErase),
+    color: state.strokeColor,
+    pointerType: e.pointerType,
+  };
+  activePoints.push(pt);
+  // Immediately freeze the first point — guarantees taps commit even with no move events
+  frozenPoints = activePoints.slice();
+}
+
+// ── Primary stroke start — pointerdown on window (capture phase) ──
 window.addEventListener('pointerdown', e => {
   if (state.tool !== 'draw' && state.tool !== 'erase' && state.tool !== 'shape') return;
   if (e.button === 1) return;
-  // Accept mouse (button 0) and pen (any button) — reject other mouse buttons
   if (e.pointerType === 'mouse' && e.button !== 0) return;
-  if (e.target.closest('.sb-frame, .waveform-block, .canvas-image, .canvas-label, #toolbar, #tab-bar')) return;
+  // Use elementFromPoint with overlay temporarily transparent to find
+  // what's physically under the pen — the overlay sits on top and
+  // would return itself if left active during the check.
+  const _prevPE = overlay.style.pointerEvents;
+  overlay.style.pointerEvents = 'none';
+  const underPen = document.elementFromPoint(e.clientX, e.clientY);
+  overlay.style.pointerEvents = _prevPE;
+  if (underPen && underPen.closest('.sb-frame, .waveform-block, .canvas-image, .canvas-label, #toolbar, #tab-bar')) return;
 
-  // Prevent browser from treating pen input as a scroll/pan/drag gesture
   e.preventDefault();
 
   if (state.tool === 'shape') {
@@ -1655,28 +1797,57 @@ window.addEventListener('pointerdown', e => {
     return;
   }
 
-  activeIsErase = state.tool === 'erase';
-  overlayActivate();
-  overlay.setPointerCapture(e.pointerId);
-  state.isDrawing = true;
-  activePoints = [];
-  const pressure = (state.pressureEnabled && e.pressure > 0) ? e.pressure : 0.5;
-  const w = activeIsErase ? state.brushSize * 6 : Math.max(1, state.brushSize * (state.pressureEnabled ? pressure * 2 : 1));
-  activePoints.push({ sx: e.clientX, sy: e.clientY, w, color: state.strokeColor });
+  startStroke(e, state.tool === 'erase');
+  // Capture on the overlay so pointermove keeps firing even if pen moves fast
+  try { overlay.setPointerCapture(e.pointerId); } catch(_) {}
 }, { capture: true });
+
+// ── Fallback: catch pen strokes that pointerdown missed ──────
+// If the pen is already moving when it touches (common with fast gestures),
+// pointerdown may fire with buttons=0 and be skipped. pointermove on the
+// window in capture phase catches these orphaned move events.
+window.addEventListener('pointermove', e => {
+  if (state.tool !== 'draw' && state.tool !== 'erase') return;
+  if (e.pointerType !== 'pen') return; // only needed for pen
+  if (state.isDrawing) return;         // already drawing normally
+  // pen is down (buttons & 1) but we missed the pointerdown
+  if (!(e.buttons & 1)) return;
+  const underPen2 = document.elementFromPoint(e.clientX, e.clientY);
+  if (underPen2 && underPen2.closest('.sb-frame, .waveform-block, .canvas-image, .canvas-label, #toolbar, #tab-bar')) return;
+  // Start the stroke now from this move event
+  startStroke(e, state.tool === 'erase');
+  try { overlay.setPointerCapture(e.pointerId); } catch(_) {}
+}, { capture: true, passive: false });
 
 overlay.addEventListener('pointermove', e => {
   if (!state.isDrawing) return;
-  e.preventDefault(); // prevent browser pan/scroll during stroke (important for pen mode)
+  e.preventDefault();
   if (state.tool === 'shape' && shapeStart) {
     renderShapePreview(shapeStart.sx, shapeStart.sy, e.clientX, e.clientY);
     return;
   }
+  // For pen: stop collecting points the moment the pen lifts (buttons===0).
+  // Do NOT call finishStroke here — let pointerup handle the commit so we
+  // don't double-commit or commit with the wrong final coordinate.
+  if (e.pointerType === 'pen' && e.buttons === 0) {
+    return;
+  }
+  // Use coalesced events for maximum fidelity
   const events = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
   for (const ev of events) {
-    const pressure = (state.pressureEnabled && ev.pressure > 0) ? ev.pressure : 0.5;
-    const w = activeIsErase ? state.brushSize * 6 : Math.max(1, state.brushSize * (state.pressureEnabled ? pressure * 2 : 1));
-    activePoints.push({ sx: ev.clientX, sy: ev.clientY, w, color: state.strokeColor });
+    if (ev.pointerType === 'pen' && ev.buttons === 0) break;
+    activePoints.push({
+      sx: ev.clientX, sy: ev.clientY,
+      w: pointWidth(ev, activeIsErase),
+      color: state.strokeColor,
+      pointerType: ev.pointerType,
+    });
+  }
+  // Freeze a snapshot of activePoints while pen is confirmed down.
+  // commitStroke will use this snapshot, ignoring any points added
+  // after the pen physically leaves the surface.
+  if (e.pointerType !== 'pen' || e.buttons > 0) {
+    frozenPoints = activePoints.slice();
   }
   scheduleOverlayRender();
 }, { passive: false });
@@ -1694,8 +1865,15 @@ function finishStroke(e) {
   overlayDeactivate();
 }
 
-overlay.addEventListener('pointerup',     finishStroke);
-overlay.addEventListener('pointercancel', finishStroke);
+// Single pointerup handler on window — catches all cases including
+// when pointer capture is lost. Guard with isDrawing prevents double-commit.
+window.addEventListener('pointerup', e => {
+  if (state.isDrawing) finishStroke(e);
+}, { capture: true });
+
+window.addEventListener('pointercancel', e => {
+  if (state.isDrawing) finishStroke(e);
+}, { capture: true });
 
 // Strokes and shapes are permanent once drawn — select mode only applies
 // to DOM elements (frames, images, labels). No stroke drag/selection needed.
@@ -2390,6 +2568,7 @@ function addWaveform(opts) {
       <button class="waveform-ctrl" id="wc-pin-${id}" title="Pin (lock position)">⊙</button>
       <button class="waveform-ctrl" id="wc-del-${id}" title="Remove">✕</button>
     </div>
+
     <div class="waveform-body" id="wc-body-${id}">
       <canvas class="waveform-canvas" id="wc-canvas-${id}"></canvas>
       <div class="waveform-playhead" id="wc-head-${id}"></div>
@@ -2543,6 +2722,7 @@ function addWaveform(opts) {
     wState.startTime = getAudioContext().currentTime;
     wState.playing   = true;
     block.querySelector(`#wc-play-${id}`).textContent = '⏸';
+
     tick();
   }
 
@@ -2552,6 +2732,7 @@ function addWaveform(opts) {
     try { wState.source.stop(); } catch(e) {}
     wState.playing = false;
     block.querySelector(`#wc-play-${id}`).textContent = '▶';
+
     cancelAnimationFrame(animId);
   }
 
@@ -2560,6 +2741,7 @@ function addWaveform(opts) {
     wState.playing     = false;
     wState.pauseOffset = 0;
     block.querySelector(`#wc-play-${id}`).textContent = '▶';
+
     cancelAnimationFrame(animId);
     updatePlayheadPos();
   }
@@ -2592,30 +2774,147 @@ function addWaveform(opts) {
 
   compactBtn.addEventListener('click', () => {
     isCompact = !isCompact;
-    // Hide: filename, volume slider+mute
     titleEl.style.display  = isCompact ? 'none' : '';
     volWrap.style.display  = isCompact ? 'none' : '';
     compactBtn.textContent = isCompact ? '⊕' : '⊖';
     compactBtn.title       = isCompact ? 'Expand controls' : 'Toggle compact mode';
   });
 
+  // ── Controller panel ──────────────────────────────────────────
+  // A separate floating panel that appears when the waveform is pinned.
+  // Lives on infiniteCanvas at z-index:1500 — above ink, fully pen-accessible.
+  let ctrlPanel = null;
+
+  function createController() {
+    if (ctrlPanel) return;
+    ctrlPanel = document.createElement('div');
+    ctrlPanel.className = 'wf-controller visible';
+    const bx = parseFloat(block.style.left) || 0;
+    const by = parseFloat(block.style.top)  || 0;
+    ctrlPanel.style.left = bx + 'px';
+    ctrlPanel.style.top  = (by - 62) + 'px';
+
+    // Lean icon strip: drag | ⏮ ▶ ■ ⏭ | 🔊 ——— | ⊗
+    ctrlPanel.innerHTML = `
+      <div class="wf-ctrl-drag">
+        <span class="wf-ctrl-drag-dots"></span>
+        <button class="wf-icon-btn wf-close" title="Close panel" style="font-size:12px;width:22px;height:22px;">✕</button>
+      </div>
+      <div class="wf-ctrl-body">
+        <button class="wf-icon-btn wf-rew"  title="Back 5s">⏮</button>
+        <button class="wf-icon-btn wf-play play" title="Play/Pause">▶</button>
+        <button class="wf-icon-btn wf-stop" title="Stop">■</button>
+        <button class="wf-icon-btn wf-fwd"  title="Forward 5s">⏭</button>
+        <div class="wf-ctrl-sep"></div>
+        <button class="wf-icon-btn wf-mute" title="Mute">🔊</button>
+        <input  class="wf-vol-slider wf-vol" type="range" min="0" max="1" step="0.01" value="${wState.volume}">
+        <div class="wf-ctrl-sep"></div>
+        <button class="wf-icon-btn wf-unpin" title="Unpin waveform" style="font-size:14px;">⊗</button>
+      </div>
+    `;
+
+    infiniteCanvas.appendChild(ctrlPanel);
+
+    // Drag handle
+    makeDraggable(ctrlPanel, ctrlPanel.querySelector('.wf-ctrl-drag'));
+
+    // Critical — stop ALL pointer events reaching the drawing engine
+    ctrlPanel.addEventListener('pointerdown', e => {
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+    }, true);
+
+    const wfPlay  = ctrlPanel.querySelector('.wf-play');
+    const wfStop  = ctrlPanel.querySelector('.wf-stop');
+    const wfRew   = ctrlPanel.querySelector('.wf-rew');
+    const wfFwd   = ctrlPanel.querySelector('.wf-fwd');
+    const wfMute  = ctrlPanel.querySelector('.wf-mute');
+    const wfVol   = ctrlPanel.querySelector('.wf-vol');
+    const wfUnpin = ctrlPanel.querySelector('.wf-unpin');
+    const wfClose = ctrlPanel.querySelector('.wf-close');
+
+    function syncCtrlState() {
+      wfPlay.textContent = wState.playing ? '⏸' : '▶';
+      wfMute.textContent = wState.muted ? '🔇' : wState.volume < 0.5 ? '🔉' : '🔊';
+      wfMute.classList.toggle('muted', wState.muted);
+      wfVol.value = wState.volume;
+    }
+
+    function skip(secs) {
+      const cur = wState.playing
+        ? getAudioContext().currentTime - wState.startTime + wState.pauseOffset
+        : wState.pauseOffset;
+      const t = Math.max(0, Math.min(wState.audioBuffer ? wState.audioBuffer.duration : 0, cur + secs));
+      const wasPlaying = wState.playing;
+      if (wasPlaying) { try { wState.source.stop(); } catch(err){} cancelAnimationFrame(animId); wState.playing = false; }
+      wState.pauseOffset = t;
+      updatePlayheadPos();
+      if (wasPlaying) playAudio();
+      syncCtrlState();
+    }
+
+    wfPlay.addEventListener('pointerup',  () => { wState.playing ? pauseAudio() : playAudio(); syncCtrlState(); });
+    wfStop.addEventListener('pointerup',  () => { stopAudio(); syncCtrlState(); });
+    wfRew.addEventListener('pointerup',   () => skip(-5));
+    wfFwd.addEventListener('pointerup',   () => skip(5));
+    wfMute.addEventListener('pointerup',  () => { wState.muted = !wState.muted; applyVolume(); syncCtrlState(); });
+    wfVol.addEventListener('input', e => {
+      wState.volume = parseFloat(e.target.value);
+      if (wState.muted && wState.volume > 0) wState.muted = false;
+      applyVolume(); syncCtrlState();
+      volSlider.value = e.target.value;
+    });
+    wfUnpin.addEventListener('pointerup', () => block.querySelector(`#wc-pin-${id}`).click());
+    wfClose.addEventListener('pointerup', destroyController);
+
+    syncCtrlState();
+  }
+
+  function destroyController() {
+    if (!ctrlPanel) return;
+    ctrlPanel.remove();
+    ctrlPanel = null;
+  }
+
   // ── Lock ──────────────────────────────────────────────────────
-  // Use the unified pin system — pin button drops z-index below draw canvas
   const pinBtn = block.querySelector(`#wc-pin-${id}`);
+
+  // Intercept makePinnable to also show/hide controller
+  const _origMakePinnable = makePinnable;
   makePinnable(block, pinBtn);
+
+  // Watch for pin state changes via MutationObserver
+  new MutationObserver(() => {
+    const isPinned = block.dataset.pinned === 'true';
+    if (isPinned) {
+      // Hide header controls, show waveform only
+      header.style.display = 'none';
+      block.style.overflow = 'visible';
+      createController();
+    } else {
+      header.style.display = '';
+      block.style.overflow = 'hidden';
+      destroyController();
+    }
+  }).observe(block, { attributes: true, attributeFilter: ['data-pinned'] });
 
   // ── Scrubbing ─────────────────────────────────────────────────
   // clientX → canvas-space px from left edge of body → seconds
   // Uses getBoundingClientRect for left edge (screen space),
   // then divides by state.zoom to get canvas-space px.
-  body.addEventListener('mousedown', e => {
-    if (e.button !== 0) return;
+  body.addEventListener('pointerdown', e => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
     e.stopPropagation();
+    // When pinned and using a pen, a tap on the waveform body should scrub,
+    // not draw — so we capture the pointer here to prevent drawing engine
+    // from claiming it.
+    if (block.dataset.pinned === 'true') e.preventDefault();
+    body.setPointerCapture(e.pointerId);
     function seek(ev) {
       if (!wState.audioBuffer) return;
       const r      = body.getBoundingClientRect();
-      const screenPx = ev.clientX - r.left;        // px from left in screen space
-      const canvasPx = screenPx / state.zoom;       // px from left in canvas space
+      const screenPx = ev.clientX - r.left;
+      const canvasPx = screenPx / state.zoom;
       const t = Math.max(0, Math.min(
         wState.audioBuffer.duration,
         canvasPx / getPxPerSec()
@@ -2628,9 +2927,13 @@ function addWaveform(opts) {
     }
     seek(e);
     const onMove = ev => seek(ev);
-    const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
+    const onUp = () => {
+      body.releasePointerCapture(e.pointerId);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
   });
 
   // ── Resize handles ────────────────────────────────────────────
@@ -3347,19 +3650,43 @@ function clearAutoSave() {
   localStorage.removeItem(AUTOSAVE_KEY);
 }
 
+const AUTOSAVE_LOADING_KEY = 'musicboard_loading'; // crash detection flag
+
 function hasAutoSave() {
   try { return !!localStorage.getItem(AUTOSAVE_KEY); } catch(e) { return false; }
 }
 
 function loadAutoSave() {
   try {
+    // Check if the last restore attempt caused a crash.
+    // If the loading flag is still set, we never finished restoring — clear
+    // the bad save and start fresh rather than looping into the crash again.
+    if (localStorage.getItem(AUTOSAVE_LOADING_KEY)) {
+      console.warn('MusicBoard: last restore may have caused a crash — clearing auto-save.');
+      localStorage.removeItem(AUTOSAVE_KEY);
+      localStorage.removeItem(AUTOSAVE_LOADING_KEY);
+      updateAutoSaveStatus('⚠ Session cleared after crash');
+      return false;
+    }
+
     const raw = localStorage.getItem(AUTOSAVE_KEY);
     if (!raw) return false;
+
+    // Set the loading flag before restoring — cleared only on success
+    localStorage.setItem(AUTOSAVE_LOADING_KEY, '1');
+
     const proj = JSON.parse(raw);
     loadProject(proj);
+
+    // Restore succeeded — clear the crash detection flag
+    localStorage.removeItem(AUTOSAVE_LOADING_KEY);
     updateAutoSaveStatus('Session restored');
     return true;
   } catch(e) {
+    // Parse or restore error — clear bad save, let app start fresh
+    localStorage.removeItem(AUTOSAVE_KEY);
+    localStorage.removeItem(AUTOSAVE_LOADING_KEY);
+    updateAutoSaveStatus('⚠ Session cleared');
     return false;
   }
 }
