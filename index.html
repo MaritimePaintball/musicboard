@@ -639,6 +639,52 @@
   }
   .canvas-label:hover .lbl-del { display: flex; }
 
+  /* ── TEXT FORMAT POPUP ── */
+  #text-format-popup {
+    position: fixed;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    display: none; align-items: center; gap: 6px;
+    padding: 5px 8px;
+    z-index: 2000;
+    pointer-events: all;
+  }
+  #text-format-popup.visible { display: flex; }
+  .tfp-select {
+    border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+    font-family: 'Inter', sans-serif; font-size: 11px;
+    color: var(--text); background: white; cursor: pointer;
+    padding: 3px 5px; outline: none;
+    box-shadow: var(--shadow-btn);
+  }
+  .tfp-select:focus { border-color: var(--accent); }
+  .tfp-color {
+    width: 24px; height: 24px; border-radius: 50%;
+    border: 2px solid var(--border-strong); cursor: pointer;
+    padding: 0; background: none; box-shadow: var(--shadow-btn);
+    transition: transform 0.1s;
+    flex-shrink: 0;
+  }
+  .tfp-color:hover { transform: scale(1.1); }
+  .tfp-sep {
+    width: 1px; height: 20px; background: var(--border); flex-shrink: 0;
+  }
+  .tfp-label {
+    font-size: 10px; color: var(--text-muted);
+    font-family: 'Inter', sans-serif; font-weight: 500;
+    text-transform: uppercase; letter-spacing: 0.04em;
+  }
+
+  /* Frame text tab formatting bar */
+  .sb-text-format-bar {
+    display: none; align-items: center; gap: 6px;
+    padding: 5px 8px; border-bottom: 1px solid var(--border);
+    background: var(--panel2); flex-shrink: 0;
+  }
+  .sb-text-format-bar.visible { display: flex; }
+
   /* ── STATUS BAR ── */
   #statusbar {
     position: fixed; bottom: 0; left: 0; right: 0; height: 26px;
@@ -781,8 +827,8 @@
   <div class="tb-group">
     <button class="tb-btn active" id="tool-select" title="Select / Move (V)"><svg width="14" height="16" viewBox="0 0 14 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M2 1 L2 13 L5.5 9.5 L8.5 15 L10.5 14 L7.5 8 L12 8 Z" fill="currentColor"/></svg></button>
     <button class="tb-btn" id="tool-draw" title="Draw (D)"><svg width="18" height="14" viewBox="0 0 18 14" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 10 C3 4, 5 4, 7 7 C9 10, 11 10, 13 7 C15 4, 16 5, 17 7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-    <button class="tb-btn" id="tool-erase" title="Erase (E)"><img src="icons/Eraser.png" width="24" height="24" alt=""></button>
-    <button class="tb-btn" id="tool-shape" title="Shapes (S)"><img src="icons/Shapes.png" width="24" height="24" alt=""></button>
+    <button class="tb-btn" id="tool-erase" title="Erase (E)"><img src="icon/Eraser.png" width="24" height="24" alt="Erase"></button>
+    <button class="tb-btn" id="tool-shape" title="Shapes (S)"><img src="icons/Shapes.png" width="24" height="24" alt="Shapes"></button>
     <button class="tb-btn" id="tool-text" title="Add Text Label (T)">T</button>
   </div>
 
@@ -811,7 +857,7 @@
   </div>
 
   <div class="tb-group">
-    <button class="tb-btn" id="btn-add-frame" title="Add Storyboard Frame (F)"><img src="icons/Frame.png" width="24" height="24" alt=""></button>
+    <button class="tb-btn" id="btn-add-frame" title="Add Storyboard Frame (F)"><img src="icons/Frame.png" width="24" height="24" alt="Add Frame"></button>
     <button class="tb-btn" id="btn-add-audio" title="Add Audio Track (A)">&#9835;</button>
     <button class="tb-btn" id="btn-add-image" title="Import Image (I)">&#128444;</button>
   </div>
@@ -868,6 +914,42 @@
     <button id="btn-export-pdf">&#128196; PDF — all workspaces</button>
     <button id="btn-export-cancel">Cancel</button>
   </div>
+</div>
+
+<!-- TEXT FORMAT POPUP -->
+<div id="text-format-popup">
+  <span class="tfp-label">Font</span>
+  <select class="tfp-select" id="tfp-font" style="width:110px;">
+    <option value="Inter, sans-serif">Inter</option>
+    <option value="'Plus Jakarta Sans', sans-serif">Plus Jakarta Sans</option>
+    <option value="Georgia, serif">Georgia</option>
+    <option value="'Times New Roman', serif">Times New Roman</option>
+    <option value="'Courier New', monospace">Courier New</option>
+    <option value="Arial, sans-serif">Arial</option>
+    <option value="Verdana, sans-serif">Verdana</option>
+    <option value="Impact, sans-serif">Impact</option>
+  </select>
+  <div class="tfp-sep"></div>
+  <span class="tfp-label">Size</span>
+  <select class="tfp-select" id="tfp-size" style="width:58px;">
+    <option value="10">10</option>
+    <option value="11">11</option>
+    <option value="12">12</option>
+    <option value="14" selected>14</option>
+    <option value="16">16</option>
+    <option value="18">18</option>
+    <option value="20">20</option>
+    <option value="24">24</option>
+    <option value="28">28</option>
+    <option value="32">32</option>
+    <option value="36">36</option>
+    <option value="48">48</option>
+    <option value="60">60</option>
+    <option value="72">72</option>
+  </select>
+  <div class="tfp-sep"></div>
+  <span class="tfp-label">Colour</span>
+  <input type="color" class="tfp-color" id="tfp-color" value="#1e293b">
 </div>
 
 <!-- DROP OVERLAY -->
@@ -1701,7 +1783,34 @@ function addFrame(opts) {
         <div class="sb-pane" data-pane="draw" style="display:${activeTab==='draw'?'block':'none'};width:100%;height:100%;position:absolute;">
           <canvas class="sb-draw-canvas"></canvas>
         </div>
-        <div class="sb-pane" data-pane="text" style="display:${activeTab==='text'?'flex':'none'};width:100%;height:100%;position:absolute;">
+        <div class="sb-pane" data-pane="text" style="display:${activeTab==='text'?'flex':'none'};width:100%;height:100%;position:absolute;flex-direction:column;">
+          <div class="sb-text-format-bar">
+            <select class="tfp-select sb-tfp-font" style="width:100px;">
+              <option value="Inter, sans-serif">Inter</option>
+              <option value="'Plus Jakarta Sans', sans-serif">Plus Jakarta</option>
+              <option value="Georgia, serif">Georgia</option>
+              <option value="'Times New Roman', serif">Times New Roman</option>
+              <option value="'Courier New', monospace">Courier New</option>
+              <option value="Arial, sans-serif">Arial</option>
+              <option value="Verdana, sans-serif">Verdana</option>
+              <option value="Impact, sans-serif">Impact</option>
+            </select>
+            <select class="tfp-select sb-tfp-size" style="width:52px;">
+              <option value="10">10</option>
+              <option value="11">11</option>
+              <option value="12" selected>12</option>
+              <option value="14">14</option>
+              <option value="16">16</option>
+              <option value="18">18</option>
+              <option value="20">20</option>
+              <option value="24">24</option>
+              <option value="28">28</option>
+              <option value="32">32</option>
+              <option value="36">36</option>
+              <option value="48">48</option>
+            </select>
+            <input type="color" class="tfp-color sb-tfp-color" value="#1e293b" title="Text colour">
+          </div>
           <textarea class="sb-text-area" placeholder="Notes, descriptions, directions…">${textContent}</textarea>
         </div>
         <div class="sb-pane" data-pane="image" style="display:${activeTab==='image'?'flex':'none'};width:100%;height:100%;position:absolute;">
@@ -1726,6 +1835,26 @@ function addFrame(opts) {
       if (tab.dataset.tab === 'draw') resizeSbCanvas(frame);
     });
   });
+
+  // Frame text formatting bar
+  const ta = frame.querySelector('.sb-text-area');
+  const fmtBar = frame.querySelector('.sb-text-format-bar');
+  const fmtFont  = frame.querySelector('.sb-tfp-font');
+  const fmtSize  = frame.querySelector('.sb-tfp-size');
+  const fmtColor = frame.querySelector('.sb-tfp-color');
+
+  function applyFrameTextFormat() {
+    ta.style.fontFamily = fmtFont.value;
+    ta.style.fontSize   = fmtSize.value + 'px';
+    ta.style.color      = fmtColor.value;
+  }
+
+  ta.addEventListener('focus', () => fmtBar.classList.add('visible'));
+  // Show format bar on click — avoids blur/focus race conditions
+  ta.addEventListener('click', () => fmtBar.classList.add('visible'));
+  fmtFont.addEventListener('change', applyFrameTextFormat);
+  fmtSize.addEventListener('change', applyFrameTextFormat);
+  fmtColor.addEventListener('input',  applyFrameTextFormat);
 
   // Delete
   frame.querySelector('.sb-frame-btn.del').addEventListener('click', () => frame.remove());
@@ -1918,7 +2047,7 @@ document.getElementById('btn-add-frame').addEventListener('click', e => {
 // ═══════════════════════════════════════════════════════════
 // TEXT LABELS
 // ═══════════════════════════════════════════════════════════
-function addLabel(x, y, text) {
+function addLabel(x, y, text, opts) {
   state.labelCount++;
   const el = document.createElement('div');
   el.className = 'canvas-label';
@@ -1930,7 +2059,17 @@ function addLabel(x, y, text) {
   input.value = text || '';
   input.placeholder = 'Type here…';
   input.style.width = '200px';
+
+  // Apply saved font settings if provided
+  if (opts?.font)  input.style.fontFamily = opts.font;
+  if (opts?.size)  input.style.fontSize   = opts.size + 'px';
+  if (opts?.color) input.style.color      = opts.color;
+
   input.addEventListener('mousedown', e => e.stopPropagation());
+
+  // Show format popup when label is focused
+  // Show popup on click, not focus — avoids all blur/focus race conditions
+  input.addEventListener('click', () => showTextFormatPopup(input, el));
 
   const del = document.createElement('button');
   del.className = 'lbl-del'; del.textContent = '✕';
@@ -2012,6 +2151,88 @@ document.getElementById('image-input').addEventListener('change', e => {
   };
   reader.readAsDataURL(file);
   e.target.value = '';
+});
+
+// ═══════════════════════════════════════════════════════════
+// TEXT FORMAT POPUP
+// ═══════════════════════════════════════════════════════════
+const tfPopup   = document.getElementById('text-format-popup');
+const tfFont    = document.getElementById('tfp-font');
+const tfSize    = document.getElementById('tfp-size');
+const tfColor   = document.getElementById('tfp-color');
+let   tfTarget  = null; // the input/textarea currently being formatted
+
+function showTextFormatPopup(inputEl, containerEl) {
+  tfTarget = inputEl;
+
+  // Sync controls to current input styles
+  const cs = window.getComputedStyle(inputEl);
+  const curFont  = inputEl.style.fontFamily || cs.fontFamily;
+  const curSize  = parseInt(inputEl.style.fontSize || cs.fontSize) || 14;
+  const curColor = inputEl.style.color || cs.color;
+
+  // Match font select
+  for (const opt of tfFont.options) {
+    const optBase = opt.value.replace(/['\'"]/g, '').split(',')[0].trim().toLowerCase();
+    if (curFont.toLowerCase().includes(optBase)) {
+      tfFont.value = opt.value; break;
+    }
+  }
+  // Match size select (find closest)
+  let closest = '14';
+  let minDiff = Infinity;
+  for (const opt of tfSize.options) {
+    const diff = Math.abs(parseInt(opt.value) - curSize);
+    if (diff < minDiff) { minDiff = diff; closest = opt.value; }
+  }
+  tfSize.value = closest;
+
+  // Convert computed rgb colour to hex for the colour picker
+  try {
+    const rgb = curColor.match(/\d+/g);
+    if (rgb) {
+      const hex = '#' + rgb.slice(0,3).map(n => parseInt(n).toString(16).padStart(2,'0')).join('');
+      tfColor.value = hex;
+    }
+  } catch(e) {}
+
+  // Position popup above the container element
+  const r = containerEl.getBoundingClientRect();
+  tfPopup.style.left = r.left + 'px';
+  tfPopup.style.top  = Math.max(TOOLBAR_H + 4, r.top - 46) + 'px';
+  tfPopup.classList.add('visible');
+}
+
+function hideTextFormatPopup() {
+  tfPopup.classList.remove('visible');
+  tfTarget = null;
+}
+
+function applyTextFormat() {
+  if (!tfTarget) return;
+  tfTarget.style.fontFamily = tfFont.value;
+  tfTarget.style.fontSize   = tfSize.value + 'px';
+  tfTarget.style.color      = tfColor.value;
+  // Widen input if needed
+  if (tfTarget.tagName === 'INPUT') {
+    tfTarget.style.width = Math.max(200, tfTarget.value.length * parseInt(tfSize.value) * 0.6) + 'px';
+  }
+}
+
+
+
+// Apply format when controls change
+tfFont.addEventListener('change', applyTextFormat);
+tfSize.addEventListener('change', applyTextFormat);
+tfColor.addEventListener('input',  applyTextFormat);
+
+// Hide popup only when clicking outside both the popup and any label input
+document.addEventListener('pointerdown', e => {
+  if (!tfPopup.classList.contains('visible')) return;
+  if (tfPopup.contains(e.target)) return;
+  if (e.target.classList.contains('canvas-label-input')) return;
+  if (e.target.classList.contains('sb-text-area')) return;
+  hideTextFormatPopup();
 });
 
 // ═══════════════════════════════════════════════════════════
@@ -2453,9 +2674,13 @@ function saveProject() {
 
   // Labels
   document.querySelectorAll('.canvas-label').forEach(lbl => {
+    const inp = lbl.querySelector('input');
     proj.labels.push({
       x: parseFloat(lbl.style.left), y: parseFloat(lbl.style.top),
-      text: lbl.querySelector('input').value,
+      text: inp.value,
+      font:  inp.style.fontFamily || '',
+      size:  parseInt(inp.style.fontSize)  || 14,
+      color: inp.style.color || '',
     });
   });
 
@@ -2528,7 +2753,7 @@ function loadProject(proj) {
     }
   });
 
-  (proj.labels || []).forEach(l => addLabel(l.x, l.y, l.text));
+  (proj.labels || []).forEach(l => addLabel(l.x, l.y, l.text, { font: l.font, size: l.size, color: l.color }));
 
   (proj.images || []).forEach(im => {
     const el = addCanvasImage(im.src, im.x, im.y);
@@ -2774,7 +2999,7 @@ function restoreWorkspace(ws) {
     }
   });
 
-  (ws.labels  || []).forEach(l => addLabel(l.x, l.y, l.text));
+  (ws.labels  || []).forEach(l => addLabel(l.x, l.y, l.text, { font: l.font, size: l.size, color: l.color }));
   (ws.images  || []).forEach(im => {
     const el = addCanvasImage(im.src, im.x, im.y);
     const img = el.querySelector('img');
