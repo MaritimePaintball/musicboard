@@ -3538,23 +3538,30 @@ function restoreWorkspace(ws) {
         ">↑ Reload "${wv.filename}"</button>
       `;
       body.appendChild(prompt);
-      // Clicking the button opens a file picker filtered to same filename
-      prompt.querySelector('button').addEventListener('click', () => {
-        const inp = document.createElement('input');
-        inp.type = 'file'; inp.accept = 'audio/*';
-        inp.onchange = () => {
-          const file = inp.files[0]; if (!file) return;
-          prompt.remove();
-          const reader = new FileReader();
-          reader.onload = ev => {
-            getAudioContext().decodeAudioData(ev.target.result.slice(0))
-              .then(buf => loadSamples(buf))
-              .catch(() => alert('Could not decode audio file.'));
-          };
-          reader.readAsArrayBuffer(file);
+      // Use a real <label> + hidden <input> so the file picker opens
+      // on a direct click without requiring a programmatic inp.click().
+      // Programmatic click() on dynamically created inputs is blocked by
+      // most browsers unless called synchronously in a trusted event handler.
+      const reloadInp = document.createElement('input');
+      reloadInp.type = 'file';
+      reloadInp.accept = 'audio/*';
+      reloadInp.style.cssText = 'position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;';
+      reloadInp.addEventListener('change', () => {
+        const file = reloadInp.files[0]; if (!file) return;
+        prompt.remove();
+        const reader = new FileReader();
+        reader.onload = ev => {
+          getAudioContext().decodeAudioData(ev.target.result.slice(0))
+            .then(buf => loadSamples(buf))
+            .catch(() => alert('Could not decode audio file.'));
         };
-        inp.click();
+        reader.readAsArrayBuffer(file);
       });
+      prompt.appendChild(reloadInp);
+
+      // Wire the visible button as a <label> for the hidden input
+      const reloadBtn = prompt.querySelector('button');
+      reloadBtn.addEventListener('click', () => reloadInp.click());
     }
   });
 }
