@@ -424,73 +424,73 @@
     border-radius: 4px; background: var(--border-strong);
   }
 
-  /* ── Waveform controller panel (floating, above ink) ── */
-  .wf-controller {
+  /* ── Waveform floating control panel ── */
+  .wf-ctrl-panel {
     position: absolute;
     background: var(--panel);
     border: 1px solid var(--border);
     border-radius: var(--radius);
     box-shadow: var(--shadow);
-    display: none;
-    flex-direction: column;
-    /* z-index above everything — pen must reach this */
     z-index: 9999;
-    overflow: visible;
-    pointer-events: all !important;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-width: 0;
+    pointer-events: all;
     user-select: none;
-    touch-action: manipulation;
   }
-  .wf-controller.visible { display: flex; }
-  .wf-ctrl-drag {
+  .wf-ctrl-panel-header {
     background: var(--panel2);
     border-bottom: 1px solid var(--border);
-    height: 22px;
+    height: 24px;
     display: flex; align-items: center;
-    padding: 0 8px; gap: 4px;
+    padding: 0 6px; gap: 4px;
     cursor: move; flex-shrink: 0;
     border-radius: var(--radius) var(--radius) 0 0;
   }
-  .wf-ctrl-drag-dots {
-    flex: 1; color: var(--border-strong); font-size: 11px; letter-spacing: 2px;
+  .wf-ctrl-panel-drag {
+    flex: 1; color: var(--border-strong);
+    font-size: 11px; letter-spacing: 1px;
+    pointer-events: none;
   }
-  .wf-ctrl-drag-dots::before { content: '⠿'; }
-  .wf-icon-btn {
+  .wf-ctrl-panel-drag::before { content: '⠿'; }
+  .wf-ctrl-panel-body {
+    display: flex; align-items: center;
+    padding: 4px 6px; gap: 0;
+  }
+  .wf-c-btn {
     background: none; border: none; cursor: pointer;
-    color: var(--text-muted); font-size: 18px;
-    width: 32px; height: 32px;
+    color: var(--text-muted); font-size: 17px;
+    width: 30px; height: 30px;
     display: flex; align-items: center; justify-content: center;
-    border-radius: var(--radius-sm); line-height: 1;
-    transition: color 0.12s, background 0.12s;
-    touch-action: manipulation; flex-shrink: 0;
-    -webkit-tap-highlight-color: transparent;
+    border-radius: var(--radius-sm);
+    transition: color 0.1s, background 0.1s;
+    flex-shrink: 0; line-height: 1;
   }
-  .wf-icon-btn:hover  { color: var(--accent); background: var(--bg); }
-  .wf-icon-btn.active { color: var(--accent); }
-  .wf-icon-btn.muted  { color: #ef4444; }
-  .wf-icon-btn.play   { color: var(--accent); font-size: 20px; }
-  .wf-ctrl-body {
-    padding: 4px 8px 6px;
-    display: flex; align-items: center; gap: 2px;
+  .wf-c-btn:hover { color: var(--accent); background: var(--bg); }
+  .wf-c-btn.playing { color: var(--accent); }
+  .wf-c-btn.muted   { color: #ef4444; }
+  .wf-c-sep {
+    width: 1px; height: 16px;
+    background: var(--border); margin: 0 3px; flex-shrink: 0;
   }
-  .wf-ctrl-sep {
-    width: 1px; height: 18px; background: var(--border);
-    margin: 0 4px; flex-shrink: 0;
-  }
-  .wf-vol-slider {
-    width: 60px; -webkit-appearance: none; appearance: none;
+  .wf-c-vol {
+    width: 55px; -webkit-appearance: none; appearance: none;
     height: 3px; border-radius: 8px;
     background: var(--border); outline: none; cursor: pointer;
     accent-color: var(--accent); flex-shrink: 0;
   }
-  .wf-vol-slider::-webkit-slider-thumb {
-    -webkit-appearance: none; width: 12px; height: 12px;
+  .wf-c-vol::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 11px; height: 11px;
     border-radius: 50%; background: var(--accent);
-    border: 2px solid white; box-shadow: var(--shadow-btn);
+    border: 2px solid white; cursor: pointer;
   }
-  .wf-vol-slider::-moz-range-thumb {
-    width: 12px; height: 12px; border-radius: 50%;
+  .wf-c-vol::-moz-range-thumb {
+    width: 11px; height: 11px; border-radius: 50%;
     background: var(--accent); border: 2px solid white;
   }
+
+
 
 
   /* ── STORYBOARD FRAMES ── */
@@ -1951,10 +1951,26 @@ function makePinnable(el, pinBtn) {
     pinBtn.title = isPinned ? 'Unpin (unlock position)' : 'Pin (lock position)';
     el.classList.toggle('pinned-element', isPinned);
     pinBtn.textContent = isPinned ? '⊗' : '⊙';
-    el.style.zIndex = isPinned ? '3' : getNaturalZ();
+
     if (el.classList.contains('waveform-block')) {
       el.dataset.pinned = isPinned ? 'true' : 'false';
+      if (isPinned) {
+        // Waveform body drops below ink (z-index 5) so drawing works on top.
+        // But the header stays above the draw canvas so hover events reach it,
+        // allowing the pen-disable-on-hover to work while pinned.
+        el.style.zIndex = '3';
+        const hdr = el.querySelector('.waveform-header');
+        if (hdr) hdr.style.zIndex = '10';
+        if (hdr) hdr.style.position = 'relative';
+      } else {
+        el.style.zIndex = getNaturalZ();
+        const hdr = el.querySelector('.waveform-header');
+        if (hdr) { hdr.style.zIndex = ''; hdr.style.position = ''; }
+      }
+    } else {
+      el.style.zIndex = isPinned ? '3' : getNaturalZ();
     }
+
     // Update drag handle cursor when pinned
     const dh = el.querySelector('.canvas-label-drag');
     if (dh) dh.style.cursor = isPinned ? 'default' : 'move';
@@ -2780,123 +2796,166 @@ function addWaveform(opts) {
     compactBtn.title       = isCompact ? 'Expand controls' : 'Toggle compact mode';
   });
 
-  // ── Controller panel ──────────────────────────────────────────
-  // A separate floating panel that appears when the waveform is pinned.
-  // Lives on infiniteCanvas at z-index:1500 — above ink, fully pen-accessible.
+  // ── Floating control panel ─────────────────────────────────────
+  // A completely independent DOM element at z-index:9999.
+  // Created when waveform is pinned, destroyed when unpinned.
+  // All audio functions are in scope here (inside addWaveform closure).
   let ctrlPanel = null;
 
-  function createController() {
+  function buildCtrlPanel() {
     if (ctrlPanel) return;
     ctrlPanel = document.createElement('div');
-    ctrlPanel.className = 'wf-controller visible';
+    ctrlPanel.className = 'wf-ctrl-panel';
+    // Position above the waveform
     const bx = parseFloat(block.style.left) || 0;
     const by = parseFloat(block.style.top)  || 0;
-    ctrlPanel.style.left = bx + 'px';
-    ctrlPanel.style.top  = (by - 62) + 'px';
+    // Position in the bottom-left of the currently visible canvas area,
+    // with a small margin so it's never clipped or out of reach.
+    const margin = 16;
+    const panelW = 260; // approximate width before render
+    const panelH = 58;  // approximate height before render
+    const viewL  = container.scrollLeft / state.zoom;
+    const viewT  = container.scrollTop  / state.zoom;
+    const viewW  = window.innerWidth    / state.zoom;
+    const viewH  = (window.innerHeight - TOOLBAR_H - 26) / state.zoom;
+    ctrlPanel.style.left = (viewL + margin) + 'px';
+    ctrlPanel.style.top  = (viewT + viewH - panelH - margin) + 'px';
 
-    // Lean icon strip: drag | ⏮ ▶ ■ ⏭ | 🔊 ——— | ⊗
     ctrlPanel.innerHTML = `
-      <div class="wf-ctrl-drag">
-        <span class="wf-ctrl-drag-dots"></span>
-        <button class="wf-icon-btn wf-close" title="Close panel" style="font-size:12px;width:22px;height:22px;">✕</button>
+      <div class="wf-ctrl-panel-header">
+        <span class="wf-ctrl-panel-drag"></span>
+        <button class="wf-c-btn" id="wcp-close-${id}" title="Close" style="font-size:11px;width:20px;height:20px;">✕</button>
       </div>
-      <div class="wf-ctrl-body">
-        <button class="wf-icon-btn wf-rew"  title="Back 5s">⏮</button>
-        <button class="wf-icon-btn wf-play play" title="Play/Pause">▶</button>
-        <button class="wf-icon-btn wf-stop" title="Stop">■</button>
-        <button class="wf-icon-btn wf-fwd"  title="Forward 5s">⏭</button>
-        <div class="wf-ctrl-sep"></div>
-        <button class="wf-icon-btn wf-mute" title="Mute">🔊</button>
-        <input  class="wf-vol-slider wf-vol" type="range" min="0" max="1" step="0.01" value="${wState.volume}">
-        <div class="wf-ctrl-sep"></div>
-        <button class="wf-icon-btn wf-unpin" title="Unpin waveform" style="font-size:14px;">⊗</button>
+      <div class="wf-ctrl-panel-body">
+        <button class="wf-c-btn" id="wcp-rew-${id}"  title="Back 5s">⏮</button>
+        <button class="wf-c-btn" id="wcp-play-${id}" title="Play / Pause">▶</button>
+        <button class="wf-c-btn" id="wcp-stop-${id}" title="Stop">■</button>
+        <button class="wf-c-btn" id="wcp-fwd-${id}"  title="Forward 5s">⏭</button>
+        <div class="wf-c-sep"></div>
+        <button class="wf-c-btn" id="wcp-mute-${id}" title="Mute">🔊</button>
+        <input  class="wf-c-vol" id="wcp-vol-${id}"  type="range" min="0" max="1" step="0.01" value="1">
+        <div class="wf-c-sep"></div>
+        <button class="wf-c-btn" id="wcp-pin-${id}"  title="Unpin waveform" style="font-size:13px;">⊗</button>
       </div>
     `;
 
+    // Append directly to infiniteCanvas so it's in canvas space
     infiniteCanvas.appendChild(ctrlPanel);
 
-    // Drag handle
-    makeDraggable(ctrlPanel, ctrlPanel.querySelector('.wf-ctrl-drag'));
+    // Draggable by its header
+    const ph = ctrlPanel.querySelector('.wf-ctrl-panel-header');
+    makeDraggable(ctrlPanel, ph);
 
-    // Critical — stop ALL pointer events reaching the drawing engine
-    ctrlPanel.addEventListener('pointerdown', e => {
-      e.stopPropagation();
-      e.stopImmediatePropagation();
-    }, true);
+    // Refs
+    const cpPlay  = ctrlPanel.querySelector(`#wcp-play-${id}`);
+    const cpStop  = ctrlPanel.querySelector(`#wcp-stop-${id}`);
+    const cpRew   = ctrlPanel.querySelector(`#wcp-rew-${id}`);
+    const cpFwd   = ctrlPanel.querySelector(`#wcp-fwd-${id}`);
+    const cpMute  = ctrlPanel.querySelector(`#wcp-mute-${id}`);
+    const cpVol   = ctrlPanel.querySelector(`#wcp-vol-${id}`);
+    const cpPin   = ctrlPanel.querySelector(`#wcp-pin-${id}`);
+    const cpClose = ctrlPanel.querySelector(`#wcp-close-${id}`);
 
-    const wfPlay  = ctrlPanel.querySelector('.wf-play');
-    const wfStop  = ctrlPanel.querySelector('.wf-stop');
-    const wfRew   = ctrlPanel.querySelector('.wf-rew');
-    const wfFwd   = ctrlPanel.querySelector('.wf-fwd');
-    const wfMute  = ctrlPanel.querySelector('.wf-mute');
-    const wfVol   = ctrlPanel.querySelector('.wf-vol');
-    const wfUnpin = ctrlPanel.querySelector('.wf-unpin');
-    const wfClose = ctrlPanel.querySelector('.wf-close');
-
-    function syncCtrlState() {
-      wfPlay.textContent = wState.playing ? '⏸' : '▶';
-      wfMute.textContent = wState.muted ? '🔇' : wState.volume < 0.5 ? '🔉' : '🔊';
-      wfMute.classList.toggle('muted', wState.muted);
-      wfVol.value = wState.volume;
+    // Sync display state
+    function syncPanel() {
+      cpPlay.textContent = wState.playing ? '⏸' : '▶';
+      cpPlay.classList.toggle('playing', wState.playing);
+      cpMute.textContent = wState.muted ? '🔇' : wState.volume < 0.5 ? '🔉' : '🔊';
+      cpMute.classList.toggle('muted', wState.muted);
+      cpVol.value = wState.volume;
     }
 
-    function skip(secs) {
+    function cpSkip(secs) {
+      if (!wState.audioBuffer) return;
       const cur = wState.playing
         ? getAudioContext().currentTime - wState.startTime + wState.pauseOffset
         : wState.pauseOffset;
-      const t = Math.max(0, Math.min(wState.audioBuffer ? wState.audioBuffer.duration : 0, cur + secs));
+      const t = Math.max(0, Math.min(wState.audioBuffer.duration, cur + secs));
       const wasPlaying = wState.playing;
-      if (wasPlaying) { try { wState.source.stop(); } catch(err){} cancelAnimationFrame(animId); wState.playing = false; }
+      if (wasPlaying) {
+        try { wState.source.stop(); } catch(e) {}
+        cancelAnimationFrame(animId);
+        wState.playing = false;
+      }
       wState.pauseOffset = t;
       updatePlayheadPos();
       if (wasPlaying) playAudio();
-      syncCtrlState();
+      syncPanel();
     }
 
-    wfPlay.addEventListener('pointerup',  () => { wState.playing ? pauseAudio() : playAudio(); syncCtrlState(); });
-    wfStop.addEventListener('pointerup',  () => { stopAudio(); syncCtrlState(); });
-    wfRew.addEventListener('pointerup',   () => skip(-5));
-    wfFwd.addEventListener('pointerup',   () => skip(5));
-    wfMute.addEventListener('pointerup',  () => { wState.muted = !wState.muted; applyVolume(); syncCtrlState(); });
-    wfVol.addEventListener('input', e => {
+    // Use pointerup for all buttons — pen tablets fire pointer events
+    // reliably but click synthesis can be inconsistent with stylus input.
+    // stopPropagation on pointerdown prevents the drawing engine grabbing the event.
+    function cpBind(el, fn) {
+      el.addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); });
+      el.addEventListener('pointerup',   e => { e.stopPropagation(); fn(e); });
+    }
+
+    cpBind(cpPlay,  () => { wState.playing ? pauseAudio() : playAudio(); syncPanel(); });
+    cpBind(cpStop,  () => { stopAudio(); syncPanel(); });
+    cpBind(cpRew,   () => cpSkip(-5));
+    cpBind(cpFwd,   () => cpSkip(5));
+    cpBind(cpMute,  () => { wState.muted = !wState.muted; applyVolume(); syncPanel(); });
+    cpBind(cpPin,   () => pinBtn.click());
+    cpBind(cpClose, () => removeCtrlPanel());
+
+    // Volume slider needs special handling — pointerdown starts drag, input fires during
+    cpVol.addEventListener('pointerdown', e => { e.stopPropagation(); });
+    cpVol.addEventListener('pointermove', e => { e.stopPropagation(); });
+    cpVol.addEventListener('pointerup',   e => { e.stopPropagation(); });
+    cpVol.addEventListener('input', e => {
       wState.volume = parseFloat(e.target.value);
       if (wState.muted && wState.volume > 0) wState.muted = false;
-      applyVolume(); syncCtrlState();
+      applyVolume(); syncPanel();
       volSlider.value = e.target.value;
     });
-    wfUnpin.addEventListener('pointerup', () => block.querySelector(`#wc-pin-${id}`).click());
-    wfClose.addEventListener('pointerup', destroyController);
 
-    syncCtrlState();
+    syncPanel();
+
+    // ── Hover tool swap — same behaviour as pre-pin header ──────
+    let _cpSavedTool = null;
+    ctrlPanel.addEventListener('mouseenter', () => {
+      if (state.tool === 'draw' || state.tool === 'erase' || state.tool === 'shape') {
+        _cpSavedTool = state.tool;
+        setTool('select');
+      }
+    });
+    ctrlPanel.addEventListener('mouseleave', () => {
+      if (_cpSavedTool) { setTool(_cpSavedTool); _cpSavedTool = null; }
+    });
   }
 
-  function destroyController() {
+  function removeCtrlPanel() {
     if (!ctrlPanel) return;
     ctrlPanel.remove();
     ctrlPanel = null;
   }
 
-  // ── Lock ──────────────────────────────────────────────────────
+  // ── Pin ────────────────────────────────────────────────────────
   const pinBtn = block.querySelector(`#wc-pin-${id}`);
-
-  // Intercept makePinnable to also show/hide controller
-  const _origMakePinnable = makePinnable;
   makePinnable(block, pinBtn);
 
-  // Watch for pin state changes via MutationObserver
+  // Watch pin state — show/hide control panel accordingly
   new MutationObserver(() => {
-    const isPinned = block.dataset.pinned === 'true';
-    if (isPinned) {
-      // Hide header controls, show waveform only
-      header.style.display = 'none';
-      block.style.overflow = 'visible';
-      createController();
+    if (block.dataset.pinned === 'true') {
+      buildCtrlPanel();
     } else {
-      header.style.display = '';
-      block.style.overflow = 'hidden';
-      destroyController();
+      removeCtrlPanel();
     }
   }).observe(block, { attributes: true, attributeFilter: ['data-pinned'] });
+
+  // ── Hover tool swap (unpinned only) ────────────────────────────
+  let _savedTool = null;
+  header.addEventListener('mouseenter', () => {
+    if (block.dataset.pinned === 'true') return; // panel handles it when pinned
+    if (state.tool === 'draw' || state.tool === 'erase' || state.tool === 'shape') {
+      _savedTool = state.tool;
+      setTool('select');
+    }
+  });
+  header.addEventListener('mouseleave', () => {
+    if (_savedTool) { setTool(_savedTool); _savedTool = null; }
+  });
 
   // ── Scrubbing ─────────────────────────────────────────────────
   // clientX → canvas-space px from left edge of body → seconds
