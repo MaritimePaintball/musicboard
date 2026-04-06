@@ -3512,8 +3512,51 @@ function restoreWorkspace(ws) {
     if (im.w) { img.style.maxWidth = 'none'; img.style.width = im.w; }
     if (im.h) img.style.height = im.h;
   });
-  // Waveforms lose their audio on switch (browser limitation) — restore visual only
-  (ws.waveforms || []).forEach(wv => addWaveform({ x: wv.x, y: wv.y, w: wv.w, filename: wv.filename }).block.style.height = wv.h + 'px');
+  // Waveforms: restore visual shell and prompt user to re-select the audio file.
+  // Browsers block re-accessing local files across sessions for security reasons.
+  (ws.waveforms || []).forEach(wv => {
+    const { block, loadSamples } = addWaveform({ x: wv.x, y: wv.y, w: wv.w, filename: wv.filename });
+    block.style.height = wv.h + 'px';
+    // Show a reload button on the waveform body prompting re-selection
+    const body = block.querySelector('.waveform-body');
+    if (body) {
+      const prompt = document.createElement('div');
+      prompt.style.cssText = `
+        position:absolute;inset:0;display:flex;flex-direction:column;
+        align-items:center;justify-content:center;gap:6px;
+        background:rgba(255,255,255,0.92);z-index:4;
+      `;
+      prompt.innerHTML = `
+        <span style="font-size:11px;font-family:'Inter',sans-serif;color:var(--text-muted);text-align:center;padding:0 12px;">
+          Audio needs to be re-selected
+        </span>
+        <button style="
+          font-size:11px;font-family:'Inter',sans-serif;font-weight:500;
+          padding:5px 14px;border:1px solid var(--border-strong);
+          border-radius:var(--radius-sm);background:var(--accent);
+          color:white;cursor:pointer;box-shadow:var(--shadow-btn);
+        ">↑ Reload "${wv.filename}"</button>
+      `;
+      body.appendChild(prompt);
+      // Clicking the button opens a file picker filtered to same filename
+      prompt.querySelector('button').addEventListener('click', () => {
+        const inp = document.createElement('input');
+        inp.type = 'file'; inp.accept = 'audio/*';
+        inp.onchange = () => {
+          const file = inp.files[0]; if (!file) return;
+          prompt.remove();
+          const reader = new FileReader();
+          reader.onload = ev => {
+            getAudioContext().decodeAudioData(ev.target.result.slice(0))
+              .then(buf => loadSamples(buf))
+              .catch(() => alert('Could not decode audio file.'));
+          };
+          reader.readAsArrayBuffer(file);
+        };
+        inp.click();
+      });
+    }
+  });
 }
 
 // Initial workspace data
