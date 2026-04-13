@@ -890,6 +890,88 @@
   }
   #easter-egg-close:hover { background: var(--accent-hover); }
 
+  /* ── FEEDBACK MODAL ── */
+  #feedback-modal {
+    position: fixed; inset: 0;
+    background: rgba(30,41,59,0.4);
+    z-index: 9999;
+    display: none; align-items: center; justify-content: center;
+    backdrop-filter: blur(3px);
+  }
+  #feedback-modal.visible { display: flex; }
+  #feedback-box {
+    background: white;
+    border-radius: var(--radius-lg);
+    box-shadow: 0 20px 60px rgba(30,41,59,0.2);
+    padding: 28px 32px;
+    width: 420px; max-width: calc(100vw - 32px);
+    display: flex; flex-direction: column; gap: 14px;
+    animation: popIn 0.2s cubic-bezier(0.34,1.56,0.64,1);
+  }
+  #feedback-title {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 800; font-size: 16px; color: var(--text);
+  }
+  #feedback-subtitle {
+    font-size: 12px; color: var(--text-muted);
+    font-family: 'Inter', sans-serif; margin-top: -8px;
+  }
+  .fb-row {
+    display: flex; flex-direction: column; gap: 5px;
+  }
+  .fb-label {
+    font-size: 11px; font-weight: 500; color: var(--text-muted);
+    font-family: 'Inter', sans-serif; text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .fb-input, .fb-select, .fb-textarea {
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    font-family: 'Inter', sans-serif; font-size: 13px;
+    color: var(--text); background: white;
+    padding: 8px 10px; outline: none;
+    transition: border-color 0.15s;
+    box-shadow: var(--shadow-btn);
+    width: 100%;
+  }
+  .fb-input:focus, .fb-select:focus, .fb-textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+  }
+  .fb-textarea {
+    resize: vertical; min-height: 100px; line-height: 1.6;
+  }
+  .fb-actions {
+    display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px;
+  }
+  .fb-cancel {
+    background: white; border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm); cursor: pointer;
+    color: var(--text-muted); font-family: 'Inter', sans-serif;
+    font-size: 12px; font-weight: 500; padding: 8px 16px;
+    transition: all 0.15s; box-shadow: var(--shadow-btn);
+  }
+  .fb-cancel:hover { background: var(--bg); color: var(--text); }
+  .fb-submit {
+    background: var(--accent); border: none; border-radius: var(--radius-sm);
+    cursor: pointer; color: white; font-family: 'Inter', sans-serif;
+    font-size: 12px; font-weight: 600; padding: 8px 20px;
+    transition: background 0.15s;
+    box-shadow: 0 2px 8px rgba(59,130,246,0.35);
+  }
+  .fb-submit:hover { background: var(--accent-hover); }
+  .fb-submit:disabled { opacity: 0.5; cursor: default; }
+  #feedback-success {
+    display: none; flex-direction: column; align-items: center;
+    gap: 10px; padding: 12px 0; text-align: center;
+  }
+  #feedback-success.visible { display: flex; }
+  #feedback-success-icon { font-size: 36px; }
+  #feedback-success-msg {
+    font-family: 'Inter', sans-serif; font-size: 13px;
+    color: var(--text-muted); line-height: 1.5;
+  }
+
   /* ── EXPORT ── */
   #export-popup {
     position: fixed; top: 50%; left: 50%;
@@ -996,6 +1078,7 @@
 
   <div id="toolbar-right">
     <button class="tb-btn-text" id="btn-tutorial">? Tutorial</button>
+    <button class="tb-btn-text" id="btn-feedback">&#128172; Feedback</button>
     <button class="tb-btn-text" id="btn-recenter" title="Recenter canvas">&#8982; Recenter</button>
     <button class="tb-btn-text" id="btn-undo" title="Undo (Ctrl+Z)" disabled>&#8630; Undo</button>
     <button class="tb-btn-text" id="btn-clear-draw">&#9003; Clear Ink</button>
@@ -1083,6 +1166,48 @@
   <div class="tfp-sep"></div>
   <span class="tfp-label">Colour</span>
   <input type="color" class="tfp-color" id="tfp-color" value="#1e293b">
+</div>
+
+<!-- FEEDBACK MODAL -->
+<div id="feedback-modal">
+  <div id="feedback-box">
+    <div id="feedback-title">Send Feedback</div>
+    <div id="feedback-subtitle">Bug reports, suggestions, and general comments are all welcome.</div>
+    <div id="feedback-form-wrap">
+      <form id="feedback-form" action="https://formspree.io/f/mreowywp" method="POST"
+            style="display:flex;flex-direction:column;gap:14px;">
+        <div class="fb-row">
+          <label class="fb-label">Your Name</label>
+          <input class="fb-input" type="text" name="name" placeholder="Optional" autocomplete="name">
+        </div>
+        <div class="fb-row">
+          <label class="fb-label">Type</label>
+          <select class="fb-select" name="type" required>
+            <option value="" disabled selected>Select a type…</option>
+            <option value="Bug Report">🐛 Bug Report</option>
+            <option value="Suggestion">💡 Suggestion</option>
+            <option value="General Comment">💬 General Comment</option>
+          </select>
+        </div>
+        <div class="fb-row">
+          <label class="fb-label">Message</label>
+          <textarea class="fb-textarea" name="message" placeholder="Describe the bug, suggestion, or comment…" required></textarea>
+        </div>
+        <!-- Honeypot spam field -->
+        <input type="text" name="_gotcha" style="display:none">
+        <input type="hidden" name="_subject" value="MusicBoard Feedback">
+        <div class="fb-actions">
+          <button type="button" class="fb-cancel" id="feedback-cancel">Cancel</button>
+          <button type="submit" class="fb-submit" id="feedback-submit">Send Feedback</button>
+        </div>
+      </form>
+    </div>
+    <div id="feedback-success">
+      <div id="feedback-success-icon">✅</div>
+      <div id="feedback-success-msg">Thanks for the feedback!<br>It goes directly to the developer.</div>
+      <button class="fb-submit" id="feedback-success-close" style="margin-top:4px;">Close</button>
+    </div>
+  </div>
 </div>
 
 <!-- DROP OVERLAY -->
@@ -3277,97 +3402,125 @@ const TUTORIAL_TEXT = `MUSICBOARD — HOW TO USE
 TOOLS (keyboard shortcuts)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
 ▶ Select / Move [V]
-  The default tool. Click any stroke, shape, frame, image, or label to select it. Drag to reposition. Selected strokes and shapes show an orange dashed bounding box. Click empty canvas to deselect.
+  The default tool. Drag any frame, image, or text label to reposition it.
 
 ✎ Draw [D]
-  Freehand drawing on the whiteboard or inside a frame's Draw tab. Drawing tablets are fully supported with pressure sensitivity. Use the OUTLINE colour picker and SIZE slider to adjust colour and brush size.
+  Freehand drawing on the whiteboard or inside a frame's Draw tab.
+  Drawing tablets are fully supported with pressure sensitivity.
+  Use the OUTLINE colour picker and SIZE slider or number field to set colour and brush size.
+  Hovering over the audio player header while drawing automatically switches to Select so you can use the controls, then switches back when you move away.
 
 □ Erase [E]
   Erases freehand ink and shapes on the whiteboard. Draw over anything you want to remove.
 
 ⬜ Shapes [S]
-  Draw rectangles, circles, and arrows on the canvas. Selecting the shape tool reveals three sub-tools in the toolbar:
+  Draw rectangles, circles, and arrows on the canvas. Three sub-tools appear in the toolbar:
   • ⬜ Rectangle — drag to draw
   • ⭕ Circle    — drag to draw an ellipse
-  • ➔ Arrow     — drag from tail to tip; arrowhead scales automatically
+  • ➔ Arrow     — drag from tail to tip
 
-  Use OUTLINE for the outline colour and FILL for the interior colour.
-  Click the FILL button to toggle fill on or off (amber = fill active).
-  Use the SIZE slider to control outline thickness.
-  Shapes are drawn permanently. Use the Erase tool to remove them.
+  Use OUTLINE for stroke colour, FILL for interior colour.
+  Toggle fill on/off with the FILL button.
+  Use SIZE to control outline thickness.
 
 T  Text Label [T]
-  Click anywhere on the whiteboard to place a freestanding text label. Drag to reposition.
+  Click anywhere on the whiteboard to place a text label.
+  A small header bar appears on hover with a drag handle (⠿), pin button, and delete button.
+  Drag the bottom-right corner to resize the label.
+  Click the label to open the font formatting popup — change font, size, and colour.
+  Font settings save with the project.
 
 COLOUR AND SIZE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
   OUTLINE      Stroke and outline colour for drawing and shapes
-  FILL        Interior fill colour for shapes
-  FILL button Toggle shape fill on or off
-  SIZE        Brush size for freehand drawing and shape outline thickness
+  FILL         Interior fill colour for shapes
+  FILL button  Toggle shape fill on or off
+  SIZE         Drag the slider or type a number (1–40) for precise brush size
 
-FRAMES
+FRAMES (max 10 on free plan)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
 □  Add Frame [F]
   Adds a storyboard card to the canvas. Each frame has three tabs:
   • DRAW  — freehand sketch inside the frame, tablet-friendly
-  • TEXT  — typed notes, descriptions, shot details
+  • TEXT  — typed notes with font, size, and colour formatting
   • MEDIA — import an image, video file (MP4/WebM/MOV), or embed a YouTube link
 
-  Drag a frame by its dark header bar to reposition it.
-  Resize by dragging the handle at the bottom-right corner.
-  Double-click the header bar to rename the frame (right-click also works).
-  Click the X in the header to delete the frame.
-  For media frames with content loaded, hover the media area and click the swap button to change media without removing the frame.
+  Drag by the header bar to move. Resize from the bottom-right corner.
+  Double-click or right-click the header to rename.
+  Pin button (⊙) locks the frame in place so ink draws over it freely.
+  Click ✕ to delete. Hover a media frame and click Swap to change media.
 
-  Note: YouTube links require the app to be served over HTTP (not opened as a local file). Run python3 -m http.server 8080 in the project folder if needed.
+  Note: YouTube links require the app to be served over HTTP.
 
-AUDIO WAVEFORM
+TEXT FORMATTING
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Canvas labels  Click any label to open a floating font popup — choose font family, size (10–72px), and colour. Settings are saved with the project.
+  Frame text tab Click inside a frame's TEXT tab to reveal a formatting bar at the top — same font, size, and colour controls.
+
+AUDIO WAVEFORM (max 2 on free plan)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
 ♫  Add Audio Track [A]
-  Load an audio file (MP3, WAV, FLAC, AAC, M4A, etc.) onto the canvas as a waveform timeline. You can also drag and drop audio files directly onto the whiteboard.
+  Load an audio file (MP3, WAV, FLAC, AAC, M4A) onto the canvas as a waveform timeline. Drag and drop also works.
 
-  Play / Pause  Click the play button or press it again to pause
-  Stop          Returns playback to the beginning
-  Volume        Click the speaker icon to mute or unmute; drag the slider to adjust level
-  Lock          Click the lock button to prevent the waveform from being moved accidentally. Locked waveforms can still be resized.
-  Resize width  Drag either side edge to stretch or compress the waveform display scale
-  Resize height Drag the bottom edge to make the waveform taller
-  Scrub         Click anywhere on the waveform to jump to that position; drag to scrub continuously
-  Time ruler    Tick marks every second, timestamps every 5 seconds
+  Play / Pause   ▶ / ⏸ button or click again to toggle
+  Stop           ■ returns playback to the beginning
+  Compact        ⊖ hides the filename and volume controls for a cleaner view
+  Volume         Speaker icon to mute; slider to adjust level
+  Pin (⊙)        Pins the waveform so ink draws over it. A separate floating
+                 control panel appears in the bottom-left of the viewport with:
+                 ⏮ back 5s  ▶ play  ■ stop  ⏭ forward 5s  🔊 volume  ⊗ unpin
+                 The control panel can be dragged anywhere on the canvas.
+                 Hovering over it automatically disables the pen tool so you
+                 can tap the controls, then re-enables it when you move away.
+  Scrub          Click or drag on the waveform body to jump to any position
+  Resize width   Drag either side edge to change the display timescale
+  Resize height  Drag the bottom edge to make the waveform taller
+  Time ruler     Tick marks every second, timestamps every 5 seconds
+  Reload         If the app restores after a crash, a Reload button appears
+                 on the waveform — click it to re-select the audio file.
 
-  Note: Audio files cannot be stored in the save file due to browser limits. Re-add audio after loading a project.
+  Note: Audio files cannot be stored in save files due to browser security limits.
 
 IMAGES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
 🖼  Import Image [I]
-  Places a JPG, PNG, TIFF, or GIF onto the canvas as a moveable object. Drag to reposition, drag the bottom-right corner to resize. Hover and click X to remove. You can also drag and drop image files directly onto the whiteboard.
+  Places a JPG, PNG, TIFF, or GIF onto the canvas. Drag to move, resize from the bottom-right corner. Pin button (⊙) locks it so ink draws over it. Drag and drop also works.
 
 CANVAS NAVIGATION
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Scroll          Mouse wheel or trackpad to pan the canvas
-  Zoom            Ctrl + scroll wheel, zooms toward the cursor
-  Recenter        Click Recenter in the toolbar to return to the canvas centre
-  Zoom limit      The canvas cannot zoom out past the point where it fills your screen. The ZOOM indicator in the status bar turns amber and shows MIN at the zoom limit.
+  Scroll          Two-finger trackpad or mouse wheel — pans in any direction including diagonally
+  Zoom            Ctrl + scroll or pinch-to-zoom on a trackpad
+  Recenter        Click Recenter to return to the canvas centre
+  Zoom limit      The ZOOM indicator turns blue and shows MIN at maximum zoom-out
 
 WORKSPACES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Each workspace is a fully independent canvas with its own frames, drawings, shapes, audio, and scroll position. Use them to organise different sections of a project.
+  Each workspace is a fully independent canvas with its own frames, drawings, audio, and scroll position.
 
   + button        Add a new workspace (up to 8)
   Click a tab     Switch workspaces
   Double-click    Rename a workspace
-  X on tab        Close a workspace (the last workspace cannot be closed)
+  X on tab        Close a workspace (last one cannot be closed)
 
   All workspaces save together in one project file.
+
+PIN SYSTEM
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Frames, images, text labels, and the audio waveform all have a pin button (⊙).
+  Pinning locks the element in place and drops it below the ink layer so you can draw over it freely. Click ⊗ to unpin and restore normal behaviour.
+
+AUTO-SAVE
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+  MusicBoard automatically saves your session to browser storage every 5 seconds. If the tab crashes or closes unexpectedly, your work is restored the next time you open the app. The status bar shows the last save time. If a restore causes a crash, the bad session is cleared automatically and the app starts fresh.
 
 UTILITY BUTTONS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
   ? Tutorial    Open this guide
-  Recenter      Scroll to the canvas centre at the current zoom level
+  Recenter      Scroll to the canvas centre
+  Undo          Undo the last ink stroke (up to 5 levels, also Ctrl+Z)
   Clear Ink     Remove all freehand ink and shapes from the current workspace
   Load          Open a saved MusicBoard project (.json)
-  Save          Save the full project including all workspaces as a .json file
+  Save          Save the full project as a .json file
 
 KEYBOARD SHORTCUTS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -3378,7 +3531,8 @@ KEYBOARD SHORTCUTS
   T   Text Label
   F   Add Frame
   A   Add Audio Track
-  I   Import Image`
+  I   Import Image
+  Ctrl+Z   Undo last stroke`
 
 let tutorialFrame = null;
 
@@ -3990,6 +4144,67 @@ document.getElementById('btn-export-pdf').addEventListener('click', async () => 
   } catch(err) {
     console.error('PDF export failed:', err);
     alert('Export failed — check the console for details.');
+  }
+});
+
+// ═══════════════════════════════════════════════════════════
+// FEEDBACK MODAL
+// ═══════════════════════════════════════════════════════════
+const feedbackModal   = document.getElementById('feedback-modal');
+const feedbackForm    = document.getElementById('feedback-form');
+const feedbackSuccess = document.getElementById('feedback-success');
+
+document.getElementById('btn-feedback').addEventListener('click', () => {
+  feedbackModal.classList.add('visible');
+  feedbackSuccess.classList.remove('visible');
+  document.getElementById('feedback-form-wrap').style.display = '';
+  feedbackForm.reset();
+});
+
+document.getElementById('feedback-cancel').addEventListener('click', () => {
+  feedbackModal.classList.remove('visible');
+});
+
+document.getElementById('feedback-success-close').addEventListener('click', () => {
+  feedbackModal.classList.remove('visible');
+});
+
+// Close on backdrop click
+feedbackModal.addEventListener('click', e => {
+  if (e.target === feedbackModal) feedbackModal.classList.remove('visible');
+});
+
+// Close on Escape
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && feedbackModal.classList.contains('visible')) {
+    feedbackModal.classList.remove('visible');
+  }
+});
+
+// Submit via fetch so we can show success state without page reload
+feedbackForm.addEventListener('submit', async e => {
+  e.preventDefault();
+  const submitBtn = document.getElementById('feedback-submit');
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Sending…';
+  try {
+    const res = await fetch(feedbackForm.action, {
+      method: 'POST',
+      body: new FormData(feedbackForm),
+      headers: { 'Accept': 'application/json' },
+    });
+    if (res.ok) {
+      document.getElementById('feedback-form-wrap').style.display = 'none';
+      feedbackSuccess.classList.add('visible');
+    } else {
+      alert('Something went wrong. Please try again.');
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Send Feedback';
+    }
+  } catch(err) {
+    alert('Could not send feedback. Check your connection and try again.');
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Send Feedback';
   }
 });
 
