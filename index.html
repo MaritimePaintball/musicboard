@@ -3,20 +3,20 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>MusicBoard — Video Storyboard Studio</title>
+<title>Comp Board — Visual Storyboard Studio</title>
 
 <!-- SEO & sharing -->
-<meta name="description" content="A freeform storyboarding tool for music videos. Infinite canvas, audio waveforms, drawing tablet support, and storyboard frames.">
-<meta name="author" content="MusicBoard">
-<meta property="og:title" content="MusicBoard — Video Storyboard Studio">
-<meta property="og:description" content="A freeform storyboarding canvas for music videos and video directors.">
+<meta name="description" content="A freeform storyboarding tool for creatives. Infinite canvas, audio waveforms, drawing tablet support, and storyboard frames.">
+<meta name="author" content="Comp Board">
+<meta property="og:title" content="Comp Board — Visual Storyboard Studio">
+<meta property="og:description" content="A freeform storyboarding canvas for directors, animators, and creative teams.">
 <meta property="og:type" content="website">
 
 <!-- PWA -->
 <meta name="theme-color" content="#ffffff">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="MusicBoard">
+<meta name="apple-mobile-web-app-title" content="Comp Board">
 <link rel="manifest" href="manifest.json">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -1034,7 +1034,7 @@
 
 <!-- TOOLBAR -->
 <div id="toolbar">
-  <div id="logo">MUSIC<span>BOARD</span></div>
+  <div id="logo">COMP<span>BOARD</span></div>
 
   <div class="tb-group">
     <button class="tb-btn active" id="tool-select" title="Select / Move (V)"><svg width="14" height="16" viewBox="0 0 14 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M2 1 L2 13 L5.5 9.5 L8.5 15 L10.5 14 L7.5 8 L12 8 Z" fill="currentColor"/></svg></button>
@@ -1198,7 +1198,7 @@
         </div>
         <!-- Honeypot spam field -->
         <input type="text" name="_gotcha" style="display:none">
-        <input type="hidden" name="_subject" value="MusicBoard Feedback">
+        <input type="hidden" name="_subject" value="Comp Board Feedback">
         <div class="fb-actions">
           <button type="button" class="fb-cancel" id="feedback-cancel">Cancel</button>
           <button type="submit" class="fb-submit" id="feedback-submit">Send Feedback</button>
@@ -1219,7 +1219,7 @@
 <!-- HIDDEN INPUTS -->
 <input type="file" id="audio-input" accept="audio/*">
 <input type="file" id="image-input" accept="image/*,.tiff,.tif">
-<input type="file" id="project-input" accept=".json,.musicboard">
+<input type="file" id="project-input" accept=".json,.compboard">
 
 <script>
 // ═══════════════════════════════════════════════════════════
@@ -3347,7 +3347,7 @@ function saveProject() {
   const blob = new Blob([JSON.stringify(proj, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'musicboard-project.json';
+  a.download = 'compboard-project.json';
   a.click();
 }
 
@@ -3417,7 +3417,7 @@ function loadProject(proj) {
 // ═══════════════════════════════════════════════════════════
 // TUTORIAL FRAME
 // ═══════════════════════════════════════════════════════════
-const TUTORIAL_TEXT = `MUSICBOARD — HOW TO USE
+const TUTORIAL_TEXT = `COMP BOARD — HOW TO USE
 
 TOOLS (keyboard shortcuts)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -3531,7 +3531,7 @@ PIN SYSTEM
 
 AUTO-SAVE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
-  MusicBoard automatically saves your session to browser storage every 5 seconds. If the tab crashes or closes unexpectedly, your work is restored the next time you open the app. The status bar shows the last save time. If a restore causes a crash, the bad session is cleared automatically and the app starts fresh.
+  Comp Board automatically saves your session to browser storage every 5 seconds. If the tab crashes or closes unexpectedly, your work is restored the next time you open the app. The status bar shows the last save time. If a restore causes a crash, the bad session is cleared automatically and the app starts fresh.
 
 UTILITY BUTTONS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -3539,7 +3539,7 @@ UTILITY BUTTONS
   Recenter      Scroll to the canvas centre
   Undo          Undo the last ink stroke (up to 5 levels, also Ctrl+Z)
   Clear Ink     Remove all freehand ink and shapes from the current workspace
-  Load          Open a saved MusicBoard project (.json)
+  Load          Open a saved Comp Board project (.json)
   Save          Save the full project as a .json file
 
 KEYBOARD SHORTCUTS
@@ -3572,7 +3572,7 @@ function openTutorial() {
   const cy = (container.scrollTop  + (window.innerHeight - 84) / 2) / state.zoom - 300;
   tutorialFrame = addFrame({
     x: cx, y: cy, w: 440, h: 600,
-    title: 'How To Use MusicBoard',
+    title: 'How To Use Comp Board',
     activeTab: 'text',
     textContent: TUTORIAL_TEXT,
   });
@@ -3849,7 +3849,7 @@ function saveProject() {
   const blob = new Blob([JSON.stringify(proj, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'musicboard-project.json';
+  a.download = 'compboard-project.json';
   a.click();
 }
 
@@ -3885,7 +3885,7 @@ function loadProject(proj) {
 // ═══════════════════════════════════════════════════════════
 // AUTO-SAVE — localStorage crash protection
 // ═══════════════════════════════════════════════════════════
-const AUTOSAVE_KEY     = 'musicboard_autosave';
+const AUTOSAVE_KEY     = 'compboard_autosave';
 const AUTOSAVE_DELAY   = 5000; // ms after last change before saving
 let   autoSaveTimer    = null;
 let   autoSaveEnabled  = true;
@@ -3933,7 +3933,7 @@ function clearAutoSave() {
   localStorage.removeItem(AUTOSAVE_KEY);
 }
 
-const AUTOSAVE_LOADING_KEY = 'musicboard_loading'; // crash detection flag
+const AUTOSAVE_LOADING_KEY = 'compboard_loading'; // crash detection flag
 
 function hasAutoSave() {
   try { return !!localStorage.getItem(AUTOSAVE_KEY); } catch(e) { return false; }
@@ -3945,7 +3945,7 @@ function loadAutoSave() {
     // If the loading flag is still set, we never finished restoring — clear
     // the bad save and start fresh rather than looping into the crash again.
     if (localStorage.getItem(AUTOSAVE_LOADING_KEY)) {
-      console.warn('MusicBoard: last restore may have caused a crash — clearing auto-save.');
+      console.warn('Comp Board: last restore may have caused a crash — clearing auto-save.');
       localStorage.removeItem(AUTOSAVE_KEY);
       localStorage.removeItem(AUTOSAVE_LOADING_KEY);
       updateAutoSaveStatus('⚠ Session cleared after crash');
@@ -4122,7 +4122,7 @@ document.getElementById('btn-export-png').addEventListener('click', async () => 
     canvas.toBlob(blob => {
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = `${workspaces[activeWsIdx].name || 'musicboard'}.png`;
+      a.download = `${workspaces[activeWsIdx].name || 'compboard'}.png`;
       a.click();
     }, 'image/png');
   } catch(err) {
@@ -4159,7 +4159,7 @@ document.getElementById('btn-export-pdf').addEventListener('click', async () => 
       pdf.setTextColor(150);
       pdf.text(workspaces[i].name || `Workspace ${i+1}`, mmW/2, mmH - 2, { align: 'center' });
     }
-    pdf.save('musicboard-export.pdf');
+    pdf.save('compboard-export.pdf');
   } catch(err) {
     console.error('PDF export failed:', err);
     alert('Export failed — check the console for details.');
