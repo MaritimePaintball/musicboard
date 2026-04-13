@@ -72,8 +72,10 @@
     z-index: 1000;
     border-bottom: 1px solid var(--border);
     box-shadow: 0 1px 4px rgba(30,41,59,0.06);
-    overflow: hidden;
+    overflow-x: auto; overflow-y: hidden;
+    scrollbar-width: none;
   }
+  #toolbar::-webkit-scrollbar { display: none; }
 
   #logo {
     padding: 0 18px;
@@ -192,6 +194,7 @@
 
   #toolbar-right {
     margin-left: auto; display: flex; align-items: center; gap: 6px; padding: 0 14px;
+    flex-shrink: 0; /* prevent right buttons from collapsing */
   }
   .tb-btn-text {
     background: white; border: 1px solid var(--border-strong); cursor: pointer;
@@ -271,8 +274,8 @@
     position: fixed; top: 86px; left: 0; right: 0; bottom: 26px;
     overflow: scroll; cursor: default;
     background-color: var(--canvas-bg);
-    /* Prevent browser from claiming pen/touch for scrolling — we handle it */
     touch-action: pan-x pan-y;
+    /* top is set dynamically by JS to match actual toolbar+tabbar height */
   }
 
   /* Scrollbar styling */
@@ -310,7 +313,7 @@
   /* Screen-resolution overlay for low-latency live strokes */
   #stroke-overlay {
     position: fixed;
-    top: 86px; left: 0;   /* sits over canvas-container, below toolbar+tabbar */
+    top: 86px; left: 0; /* updated dynamically by JS */
     pointer-events: none;
     z-index: 6;
   }
@@ -1311,7 +1314,7 @@ let _tx = 0, _ty = 0, _tz = 1;
 // Canvas is CANVAS_SIZE px; viewport excludes toolbar + statusbar.
 function getMinZoom() {
   const vw = window.innerWidth;
-  const vh = window.innerHeight - 86 - 26; // toolbar+tabbar + statusbar
+  const vh = window.innerHeight - TOOLBAR_H - 26; // toolbar+tabbar + statusbar
   // Canvas must always be at least as large as the viewport so you
   // can't pan into blank space. Also enforce a 25% floor for usability.
   const fitZoom = Math.max(vw / CANVAS_SIZE, vh / CANVAS_SIZE);
@@ -1538,14 +1541,31 @@ container.addEventListener('contextmenu', e => e.preventDefault());
 // all canvas-space coordinates instead of getBoundingClientRect().
 // ═══════════════════════════════════════════════════════════
 
-const TOOLBAR_H = 86; // toolbar (52px) + tab bar (34px)
+// TOOLBAR_H is measured dynamically so layout adapts to any screen size.
+// Falls back to 86 (52px toolbar + 34px tabbar) on first paint before DOM is ready.
+function getToolbarH() {
+  const tb = document.getElementById('toolbar');
+  const tt = document.getElementById('tab-bar');
+  if (tb && tt) return tb.offsetHeight + tt.offsetHeight;
+  return 86;
+}
+let TOOLBAR_H = 86;
+function updateToolbarH() {
+  TOOLBAR_H = getToolbarH();
+}
 
 const overlay = document.getElementById('stroke-overlay');
 const octx    = overlay.getContext('2d');
 
 function resizeOverlay() {
+  updateToolbarH();
+  const statusH = 26;
   overlay.width  = window.innerWidth;
-  overlay.height = window.innerHeight - 86 - 26;
+  overlay.height = window.innerHeight - TOOLBAR_H - statusH;
+  // Keep canvas-container and overlay top in sync with actual toolbar height
+  container.style.top    = TOOLBAR_H + 'px';
+  overlay.style.top      = TOOLBAR_H + 'px';
+  container.style.bottom = statusH + 'px';
 }
 resizeOverlay();
 window.addEventListener('resize', () => {
@@ -3973,14 +3993,13 @@ function touchAutoSave() { scheduleAutoSave(); }
 // WELCOME: add one sample frame to get started
 // ═══════════════════════════════════════════════════════════
 window.addEventListener('load', () => {
-  // Centre the 8000×8000 canvas in the viewport so there's equal drawing
-  // room in all directions. The canvas origin (0,0) maps to the top-left
-  // of infinite space; we pan so the centre (4000,4000) is at screen centre.
+  // Measure actual toolbar height now DOM is ready
+  resizeOverlay();
+
   const CANVAS_CENTRE = CANVAS_SIZE / 2;  // 4000
 
-  // Available viewport height excludes toolbar (52px) and status bar (26px)
   const vw = window.innerWidth;
-  const vh = window.innerHeight - 86 - 26;
+  const vh = window.innerHeight - TOOLBAR_H - 26;
 
   // Ensure starting zoom respects viewport minimum
   state.zoom = Math.max(getMinZoom(), state.zoom);
